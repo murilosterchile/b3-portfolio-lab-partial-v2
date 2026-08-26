@@ -18,6 +18,7 @@ class QKPInstance:
     max_cardinality: int | None = None
     sectors: tuple[str, ...] | None = None
     sector_max_count: dict[str, int] = field(default_factory=dict)
+    issuer_ids: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         n = len(self.names)
@@ -41,6 +42,8 @@ class QKPInstance:
             raise ValueError("invalid cardinality bounds")
         if self.sectors is not None and len(self.sectors) != n:
             raise ValueError("sectors must match item count")
+        if self.issuer_ids is not None and len(self.issuer_ids) != n:
+            raise ValueError("issuer_ids must match item count")
 
 
 @dataclass(frozen=True)

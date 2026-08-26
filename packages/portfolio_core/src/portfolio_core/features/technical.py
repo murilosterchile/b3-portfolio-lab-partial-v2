@@ -9,7 +9,7 @@ REQUIRED_PRICE_COLUMNS = {"trade_date", "ticker", "close", "volume", "trades"}
 def build_technical_features(
     prices: pl.DataFrame,
     *,
-    horizon_days: int = 63,
+    horizon_days: int = 21,
     execution_lag_bars: int = 1,
 ) -> pl.DataFrame:
     """Build leakage-safe daily features and executable forward-return labels.

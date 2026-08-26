@@ -7,7 +7,11 @@ from pathlib import Path
 
 import numpy as np
 import polars as pl
-from portfolio_core.backtest import WeightedBacktestConfig, run_monthly_weighted_backtest
+from portfolio_core.backtest import (
+    WeightedBacktestConfig,
+    point_in_time_covariance,
+    run_monthly_weighted_backtest,
+)
 from portfolio_core.optimizer import Candidate, build_portfolio_qkp, solve_portfolio
 from portfolio_core.quant import hierarchical_risk_parity
 from portfolio_core.quant.risk import covariance_to_correlation, ledoit_wolf_covariance
@@ -16,22 +20,10 @@ from portfolio_core.quant.risk import covariance_to_correlation, ledoit_wolf_cov
 def _pit_covariance(
     prices: pl.DataFrame, tickers: list[str], signal_date: object, lookback: int = 252
 ) -> tuple[list[str], np.ndarray] | None:
-    history = prices.filter(
-        (pl.col("trade_date") <= pl.lit(signal_date)) & pl.col("ticker").is_in(tickers)
-    ).select("trade_date", "ticker", "adjusted_close")
-    wide = history.pivot(index="trade_date", on="ticker", values="adjusted_close").sort("trade_date")
-    available = [ticker for ticker in tickers if ticker in wide.columns]
-    if len(available) < 6:
-        return None
-    values = wide.select(available).fill_null(strategy="forward").tail(lookback + 1).to_numpy()
-    if values.shape[0] < 80:
-        return None
-    with np.errstate(divide="ignore", invalid="ignore"):
-        returns = values[1:] / values[:-1] - 1.0
-    returns = returns[np.all(np.isfinite(returns), axis=1)]
-    if returns.shape[0] < 60:
-        return None
-    return available, ledoit_wolf_covariance(returns) * 252.0
+    result = point_in_time_covariance(
+        prices, tickers, signal_date, lookback_observations=lookback
+    )
+    return result if result is not None and len(result[0]) >= 6 else None
 
 
 def main() -> None:
@@ -90,6 +82,7 @@ def main() -> None:
             budget=100_000.0,
             min_positions=6,
             max_positions=10,
+            fixed_k=10,
             risk_aversion=0.7,
             uncertainty_penalty=0.5,
             min_position_fraction=1.0 / 18.0,

@@ -19,6 +19,7 @@ class BacktestConfig:
     # Signals are formed after the signal-date close. The earliest executable
     # price is therefore the next observed market close.
     execution_delay_bars: int = 1
+    max_stale_valuation_sessions: int = 20
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,7 @@ class DetailedBacktest:
     summary: BacktestSummary
     selections: pl.DataFrame
     contributions: pl.DataFrame
+    rejected_orders: pl.DataFrame
 
 
 _DEFAULT_CONFIG = BacktestConfig()
@@ -159,6 +161,8 @@ def run_monthly_topk_backtest_detailed(
         raise ValueError("execution_delay_bars must be >= 1")
     if config.transaction_cost_bps < 0:
         raise ValueError("transaction_cost_bps must be non-negative")
+    if config.max_stale_valuation_sessions < 1:
+        raise ValueError("max_stale_valuation_sessions must be positive")
     required_signals = {"trade_date", "ticker", score_column}
     if missing := required_signals - set(signals.columns):
         raise DataQualityError(f"signals missing required columns: {sorted(missing)}")
@@ -172,7 +176,14 @@ def run_monthly_topk_backtest_detailed(
 
     # A cross-section must refer to one common signal date. monthly_snapshots()
     # enforces this upstream; the assertion catches legacy/mixed-date panels.
-    signal_rows = signals.select("trade_date", "ticker", score_column).with_columns(
+    signal_columns = ["trade_date", "ticker", score_column]
+    issuer_column = next(
+        (name for name in ("issuer_id", "CD_CVM", "issuer_identifier") if name in signals.columns),
+        None,
+    )
+    if issuer_column is not None:
+        signal_columns.append(issuer_column)
+    signal_rows = signals.select(signal_columns).with_columns(
         pl.col("trade_date").dt.truncate("1mo").alias("signal_month")
     )
     mixed = signal_rows.group_by("signal_month").agg(
@@ -238,6 +249,7 @@ def run_monthly_topk_backtest_detailed(
     date_to_index = {value: index for index, value in enumerate(dates)}
     rebalance_lookup: dict[date, np.ndarray] = {}
     selection_rows: list[dict[str, object]] = []
+    rejected_rows: list[dict[str, object]] = []
     position_counts: list[int] = []
     previous_selection: set[str] = set()
 
@@ -247,11 +259,29 @@ def run_monthly_topk_backtest_detailed(
         execution_date = _execution_date(dates, date_to_index, signal_date, config.execution_delay_bars)
         if execution_date is None:
             continue
-        ranked_tickers = [
-            ticker
-            for ticker in cross.sort(score_column, descending=True)["ticker"].to_list()
-            if ticker in ticker_to_col
-        ]
+        execution_index = date_to_index[execution_date]
+        ranked_tickers: list[str] = []
+        seen_issuers: set[str] = set()
+        for row in cross.sort(score_column, descending=True).iter_rows(named=True):
+            ticker = str(row["ticker"])
+            if ticker not in ticker_to_col:
+                rejected_rows.append(
+                    {"signal_date": signal_date, "execution_date": execution_date, "ticker": ticker, "reason": "missing_price_history"}
+                )
+                continue
+            if not bool(observed[execution_index, ticker_to_col[ticker]]):
+                rejected_rows.append(
+                    {"signal_date": signal_date, "execution_date": execution_date, "ticker": ticker, "reason": "no_observed_execution_quote"}
+                )
+                continue
+            issuer = str(row[issuer_column]) if issuer_column and row[issuer_column] is not None else ticker[:4]
+            if issuer in seen_issuers:
+                rejected_rows.append(
+                    {"signal_date": signal_date, "execution_date": execution_date, "ticker": ticker, "reason": "issuer_share_class_cap"}
+                )
+                continue
+            seen_issuers.add(issuer)
+            ranked_tickers.append(ticker)
         selected = _buffered_selection(
             ranked_tickers,
             previous=previous_selection,
@@ -286,6 +316,7 @@ def run_monthly_topk_backtest_detailed(
     weights = np.zeros(len(tickers))
     cash_weight = 1.0
     contribution_rows: list[dict[str, object]] = []
+    stale_age = np.zeros(len(tickers), dtype=int)
 
     for index in range(start_index + 1, len(dates)):
         previous_date = dates[index - 1]
@@ -293,6 +324,9 @@ def run_monthly_topk_backtest_detailed(
         previous_capital = capital
         active = weights > 0
         asset_returns = daily_ret[index - 1].copy()
+        stale_age = np.where(observed[index], 0, stale_age + 1)
+        conservatively_delisted = active & (stale_age > config.max_stale_valuation_sessions)
+        asset_returns[conservatively_delisted] = -0.999
         unadjusted_action = corporate_action[index - 1] & (
             (price_column == "close") | (np.abs(asset_returns) > max_abs_return)
         )
@@ -318,6 +352,7 @@ def run_monthly_topk_backtest_detailed(
                         "weight_at_previous_close": float(weights[column]),
                         "asset_return": float(asset_returns[column]),
                         "return_contribution": float(weights[column] * asset_returns[column]),
+                        "stale_age_sessions": int(stale_age[column]),
                     }
                 )
         day_return = float(weights[active] @ asset_returns[active]) if np.any(active) else 0.0
@@ -366,9 +401,12 @@ def run_monthly_topk_backtest_detailed(
         schema={"signal_date": pl.Date, "execution_date": pl.Date, "ticker": pl.Utf8, "target_weight": pl.Float64}
     )
     contributions = pl.DataFrame(contribution_rows) if contribution_rows else pl.DataFrame(
-        schema={"trade_date": pl.Date, "ticker": pl.Utf8, "weight_at_previous_close": pl.Float64, "asset_return": pl.Float64, "return_contribution": pl.Float64}
+        schema={"trade_date": pl.Date, "ticker": pl.Utf8, "weight_at_previous_close": pl.Float64, "asset_return": pl.Float64, "return_contribution": pl.Float64, "stale_age_sessions": pl.Int64}
     )
-    return DetailedBacktest(curve, summary, selections, contributions)
+    rejected = pl.DataFrame(rejected_rows) if rejected_rows else pl.DataFrame(
+        schema={"signal_date": pl.Date, "execution_date": pl.Date, "ticker": pl.Utf8, "reason": pl.Utf8}
+    )
+    return DetailedBacktest(curve, summary, selections, contributions, rejected)
 
 
 def run_monthly_topk_backtest(

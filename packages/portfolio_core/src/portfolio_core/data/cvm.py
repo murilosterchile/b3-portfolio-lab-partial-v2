@@ -10,6 +10,53 @@ import polars as pl
 from .common import DataArtifact, sha256_file, utc_now_iso, write_manifest
 
 
+_CVM_SCALE_MULTIPLIERS = {
+    "UNIDADE": 1.0,
+    "UNIDADES": 1.0,
+    "MIL": 1_000.0,
+}
+_BRL_CURRENCIES = {"REAL", "REAIS", "BRL", "R$"}
+
+
+def normalize_cvm_currency_scale(frame: pl.DataFrame) -> pl.DataFrame:
+    """Normalize CVM account values to absolute BRL while retaining audit columns.
+
+    CVM statement values cannot safely be compared before ``MOEDA`` and
+    ``ESCALA_MOEDA`` are applied. Unknown currencies/scales fail closed instead
+    of being silently interpreted as units.
+    """
+    required = {"VL_CONTA", "MOEDA", "ESCALA_MOEDA"}
+    if missing := required - set(frame.columns):
+        raise ValueError(f"Missing CVM monetary columns: {sorted(missing)}")
+    normalized = frame.with_columns(
+        pl.col("MOEDA").cast(pl.Utf8).str.strip_chars().str.to_uppercase().alias("MOEDA"),
+        pl.col("ESCALA_MOEDA")
+        .cast(pl.Utf8)
+        .str.strip_chars()
+        .str.to_uppercase()
+        .alias("ESCALA_MOEDA"),
+        pl.col("VL_CONTA").cast(pl.Float64, strict=False).alias("raw_VL_CONTA"),
+    )
+    unknown_currency = normalized.filter(~pl.col("MOEDA").is_in(sorted(_BRL_CURRENCIES)))
+    if not unknown_currency.is_empty():
+        values = unknown_currency.get_column("MOEDA").unique().sort().to_list()
+        raise ValueError(f"Unsupported CVM currency; expected BRL: {values}")
+    unknown_scale = normalized.filter(
+        ~pl.col("ESCALA_MOEDA").is_in(sorted(_CVM_SCALE_MULTIPLIERS))
+    )
+    if not unknown_scale.is_empty():
+        values = unknown_scale.get_column("ESCALA_MOEDA").unique().sort().to_list()
+        raise ValueError(f"Unsupported CVM currency scale: {values}")
+    return normalized.with_columns(
+        pl.col("ESCALA_MOEDA")
+        .replace_strict(_CVM_SCALE_MULTIPLIERS, return_dtype=pl.Float64)
+        .alias("currency_scale_multiplier")
+    ).with_columns(
+        (pl.col("raw_VL_CONTA") * pl.col("currency_scale_multiplier")).alias("VL_CONTA"),
+        pl.lit("BRL").alias("normalized_currency"),
+    )
+
+
 def cvm_document_url(base_url: str, document: str, year: int) -> str:
     doc = document.upper()
     if doc not in {"ITR", "DFP"}:
@@ -99,6 +146,8 @@ def extract_cvm_statements(zip_path: Path, *, data_dir: Path, document: str, yea
                     "CD_CONTA",
                     "DS_CONTA",
                     "VL_CONTA",
+                    "MOEDA",
+                    "ESCALA_MOEDA",
                     "ORDEM_EXERC",
                 ]
                 if col in frame.columns
@@ -115,6 +164,7 @@ def extract_cvm_statements(zip_path: Path, *, data_dir: Path, document: str, yea
                     .str.replace(",", ".")
                     .cast(pl.Float64, strict=False)
                 )
+                frame = normalize_cvm_currency_scale(frame)
             out = (
                 data_dir
                 / "silver"

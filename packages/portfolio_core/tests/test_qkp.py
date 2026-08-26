@@ -82,3 +82,30 @@ def test_portfolio_qkp_rejects_invalid_correlation() -> None:
             max_positions=2,
             risk_aversion=1.0,
         )
+
+
+def test_stock_split_does_not_change_qkp_selection() -> None:
+    base = [
+        Candidate("A3", 100.0, 0.10, 0.01),
+        Candidate("B3", 20.0, 0.08, 0.01),
+        Candidate("C3", 30.0, 0.06, 0.01),
+    ]
+    split = [
+        Candidate(
+            candidate.ticker,
+            candidate.price / 10.0,
+            candidate.predicted_excess_return,
+            candidate.uncertainty,
+        )
+        for candidate in base
+    ]
+    kwargs = dict(
+        correlation=np.eye(3),
+        budget=1_000.0,
+        min_positions=2,
+        max_positions=2,
+        risk_aversion=1.0,
+    )
+    before = solve_exact_branch_and_bound(build_portfolio_qkp(base, **kwargs))
+    after = solve_exact_branch_and_bound(build_portfolio_qkp(split, **kwargs))
+    assert before.selected_names == after.selected_names

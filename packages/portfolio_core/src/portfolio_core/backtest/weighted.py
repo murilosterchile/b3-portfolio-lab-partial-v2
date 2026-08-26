@@ -17,6 +17,14 @@ class WeightedBacktestConfig:
     transaction_cost_bps: float = 15.0
     initial_capital: float = 100_000.0
     execution_delay_bars: int = 1
+    max_stale_valuation_sessions: int = 20
+
+
+@dataclass(frozen=True)
+class DetailedWeightedBacktest:
+    curve: pl.DataFrame
+    summary: BacktestSummary
+    rejected_orders: pl.DataFrame
 
 
 _DEFAULT_WEIGHTED_CONFIG = WeightedBacktestConfig()
@@ -53,7 +61,7 @@ def build_monthly_risk_benchmark_weights(
         available = [ticker for ticker in tickers if ticker in wide.columns]
         if len(available) < 2:
             continue
-        values = wide.select(available).fill_null(strategy="forward").tail(lookback_observations + 1).to_numpy()
+        values = wide.select(available).tail(lookback_observations + 1).to_numpy()
         if values.shape[0] < 80:
             continue
         with np.errstate(divide="ignore", invalid="ignore"):
@@ -89,9 +97,22 @@ def run_monthly_weighted_backtest(
     *,
     config: WeightedBacktestConfig = _DEFAULT_WEIGHTED_CONFIG,
 ) -> tuple[pl.DataFrame, BacktestSummary]:
-    """Execute precomputed weights at the next close with half-L1 trading costs."""
+    """Compatibility wrapper for the detailed weighted execution engine."""
+    result = run_monthly_weighted_backtest_detailed(prices, target_weights, config=config)
+    return result.curve, result.summary
+
+
+def run_monthly_weighted_backtest_detailed(
+    prices: pl.DataFrame,
+    target_weights: pl.DataFrame,
+    *,
+    config: WeightedBacktestConfig = _DEFAULT_WEIGHTED_CONFIG,
+) -> DetailedWeightedBacktest:
+    """Execute weights only where the execution close is genuinely observed."""
     if config.execution_delay_bars < 1:
         raise ValueError("execution_delay_bars must be >= 1")
+    if config.max_stale_valuation_sessions < 1:
+        raise ValueError("max_stale_valuation_sessions must be positive")
     required = {"trade_date", "ticker", "target_weight"}
     if missing := required - set(target_weights.columns):
         raise DataQualityError(f"target weights missing columns: {sorted(missing)}")
@@ -116,11 +137,13 @@ def run_monthly_weighted_backtest(
     ).sort("trade_date")
     dates = wide["trade_date"].to_list()
     asset_names = [name for name in wide.columns if name != "trade_date"]
+    observed = wide.select(pl.col(asset_names).is_not_null()).to_numpy()
     values = wide.select(asset_names).fill_null(strategy="forward").to_numpy()
     date_to_index = {value: i for i, value in enumerate(dates)}
     ticker_to_index = {ticker: i for i, ticker in enumerate(asset_names)}
     schedule: dict[object, np.ndarray] = {}
     positions: list[int] = []
+    rejected_rows: list[dict[str, object]] = []
     for signal_date in sorted(set(target_weights["trade_date"].to_list())):
         idx = date_to_index.get(signal_date)
         if idx is None or idx + config.execution_delay_bars >= len(dates):
@@ -130,7 +153,19 @@ def run_monthly_weighted_backtest(
         target = np.zeros(len(asset_names))
         for row in cross.iter_rows(named=True):
             if row["ticker"] in ticker_to_index:
-                target[ticker_to_index[row["ticker"]]] = float(row["target_weight"])
+                column = ticker_to_index[row["ticker"]]
+                if observed[idx + config.execution_delay_bars, column]:
+                    target[column] = float(row["target_weight"])
+                else:
+                    rejected_rows.append(
+                        {
+                            "signal_date": signal_date,
+                            "execution_date": execution_date,
+                            "ticker": row["ticker"],
+                            "target_weight": float(row["target_weight"]),
+                            "reason": "no_observed_execution_quote",
+                        }
+                    )
         schedule[execution_date] = target
         positions.append(int(np.sum(target > 0)))
     if not schedule:
@@ -144,13 +179,16 @@ def run_monthly_weighted_backtest(
     equity = [capital]
     periodic: list[float] = []
     turnover_total = 0.0
+    stale_age = np.zeros(len(asset_names), dtype=int)
     with np.errstate(divide="ignore", invalid="ignore"):
         returns = values[1:] / values[:-1] - 1.0
     for i in range(start + 1, len(dates)):
         current_date = dates[i]
         before = capital
         active = weights > 0
-        asset_return = returns[i - 1]
+        stale_age = np.where(observed[i], 0, stale_age + 1)
+        asset_return = returns[i - 1].copy()
+        asset_return[active & (stale_age > config.max_stale_valuation_sessions)] = -0.999
         if np.any(active & ~np.isfinite(asset_return)):
             raise DataQualityError("held asset has non-finite adjusted return")
         day_return = float(weights[active] @ asset_return[active]) if np.any(active) else 0.0
@@ -171,16 +209,18 @@ def run_monthly_weighted_backtest(
         periodic.append(capital / before - 1.0)
         equity.append(capital)
     equity_array = np.asarray(equity)
-    return (
-        pl.DataFrame({"trade_date": dates[start:], "portfolio_value": equity_array}).with_columns(
+    curve = pl.DataFrame({"trade_date": dates[start:], "portfolio_value": equity_array}).with_columns(
             pl.lit("adjusted_close").alias("price_basis")
-        ),
-        _metrics(
+        )
+    summary = _metrics(
             equity_array,
             np.asarray(periodic),
             turnover_total,
             rebalance_periods=len(schedule),
             average_positions=float(np.mean(positions)) if positions else 0.0,
             execution_delay_bars=config.execution_delay_bars,
-        ),
     )
+    rejected = pl.DataFrame(rejected_rows) if rejected_rows else pl.DataFrame(
+        schema={"signal_date": pl.Date, "execution_date": pl.Date, "ticker": pl.Utf8, "target_weight": pl.Float64, "reason": pl.Utf8}
+    )
+    return DetailedWeightedBacktest(curve, summary, rejected)

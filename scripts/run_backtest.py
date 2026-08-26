@@ -10,8 +10,17 @@ import numpy as np
 import polars as pl
 from portfolio_core.backtest import (
     BacktestConfig,
+    WeightedBacktestConfig,
+    build_monthly_qkp_weights,
+    build_monthly_risk_benchmark_weights,
     run_monthly_topk_backtest,
     run_monthly_topk_backtest_detailed,
+    run_monthly_weighted_backtest_detailed,
+)
+from portfolio_core.data.universe import (
+    UniverseConfig,
+    apply_point_in_time_universe,
+    build_point_in_time_universe,
 )
 from portfolio_core.data_quality import DataQualityError, invalid_price_rows
 from portfolio_core.features.fundamental import FUNDAMENTAL_FEATURES
@@ -93,6 +102,57 @@ def _write_result(
     )
 
 
+def _run_reference_benchmarks(
+    *, data_dir: Path, signals: pl.DataFrame, prefix: str
+) -> dict[str, dict[str, object]]:
+    """Run governed IBOV total-return and CDI curves through the weighted engine.
+
+    Files must live under ``silver/benchmarks`` and contain ``trade_date`` plus
+    either ``adjusted_close`` or a decimal ``daily_return``. Missing benchmark
+    data are reported explicitly, never substituted with a price index/proxy.
+    """
+    results: dict[str, dict[str, object]] = {}
+    signal_dates = sorted(set(signals.get_column("trade_date").to_list()))
+    for name in ("ibov_total_return", "cdi"):
+        path = data_dir / "silver" / "benchmarks" / f"{name}.parquet"
+        if not path.exists():
+            results[name] = {"status": "missing_governed_benchmark", "expected_path": str(path)}
+            continue
+        frame = pl.read_parquet(path).sort("trade_date")
+        if "adjusted_close" not in frame.columns:
+            if "daily_return" not in frame.columns:
+                results[name] = {"status": "invalid_benchmark_contract"}
+                continue
+            frame = frame.with_columns(
+                (pl.col("daily_return") + 1.0).cum_prod().alias("adjusted_close")
+            )
+        ticker = f"__{name.upper()}__"
+        benchmark_prices = frame.select("trade_date", "adjusted_close").with_columns(
+            pl.lit(ticker).alias("ticker"), pl.col("adjusted_close").alias("close")
+        )
+        available_dates = set(benchmark_prices.get_column("trade_date").to_list())
+        weights = pl.DataFrame(
+            {
+                "trade_date": [value for value in signal_dates if value in available_dates],
+                "ticker": [ticker for value in signal_dates if value in available_dates],
+                "target_weight": [1.0 for value in signal_dates if value in available_dates],
+            }
+        )
+        if weights.is_empty():
+            results[name] = {"status": "no_overlapping_signal_dates"}
+            continue
+        detail = run_monthly_weighted_backtest_detailed(
+            benchmark_prices,
+            weights,
+            config=WeightedBacktestConfig(transaction_cost_bps=0.0),
+        )
+        target = data_dir / "gold" / "backtests" / f"{prefix}_{name}"
+        target.mkdir(parents=True, exist_ok=True)
+        detail.curve.write_parquet(target / "equity_curve.parquet", compression="zstd")
+        results[name] = asdict(detail.summary)
+    return results
+
+
 def _run_strategies(
     *,
     prices: pl.DataFrame,
@@ -129,11 +189,61 @@ def _run_strategies(
         detail_dir = data_dir / "gold" / "backtests" / f"{prefix}_{name}"
         detail.selections.write_parquet(detail_dir / "selections.parquet", compression="zstd")
         detail.contributions.write_parquet(detail_dir / "contributions.parquet", compression="zstd")
+        detail.rejected_orders.write_parquet(detail_dir / "rejected_orders.parquet", compression="zstd")
         results[name] = asdict(summary)
         print(
             f"{prefix}/{name:28s} CAGR={summary.cagr:8.2%} Sharpe={summary.sharpe:7.3f} "
             f"MDD={summary.max_drawdown:8.2%} turnover/y={summary.annualized_turnover:6.2f}x"
         )
+    qkp_allocations = {
+        "ml_qkp_ew": "equal_weight",
+        "ml_qkp_inverse_vol": "inverse_vol",
+        "ml_qkp_hrp": "hrp",
+        "ml_qkp_cost_aware_minvar": "cost_aware_minvar",
+    }
+    for name, allocation in qkp_allocations.items():
+        weights, solver_diagnostics = build_monthly_qkp_weights(
+            prices, signals, allocation=allocation
+        )
+        if weights.is_empty():
+            results[name] = {"status": "insufficient_point_in_time_covariance"}
+            continue
+        detail = run_monthly_weighted_backtest_detailed(
+            prices, weights, config=WeightedBacktestConfig(transaction_cost_bps=15.0)
+        )
+        target = data_dir / "gold" / "backtests" / f"{prefix}_{name}"
+        target.mkdir(parents=True, exist_ok=True)
+        detail.curve.write_parquet(target / "equity_curve.parquet", compression="zstd")
+        weights.write_parquet(target / "target_weights.parquet", compression="zstd")
+        solver_diagnostics.write_parquet(target / "solver_diagnostics.parquet", compression="zstd")
+        detail.rejected_orders.write_parquet(target / "rejected_orders.parquet", compression="zstd")
+        payload = asdict(detail.summary)
+        (target / "summary.json").write_text(
+            json.dumps({**payload, "strategy": name, "allocation": allocation, "methodology": methodology}, indent=2),
+            encoding="utf-8",
+        )
+        results[name] = payload
+        print(
+            f"{prefix}/{name:28s} CAGR={detail.summary.cagr:8.2%} "
+            f"Sharpe={detail.summary.sharpe:7.3f} MDD={detail.summary.max_drawdown:8.2%}"
+        )
+
+    risk_weights = build_monthly_risk_benchmark_weights(
+        prices, signals, allocation="hrp", estimator="ledoit_wolf", candidate_count=50
+    )
+    if risk_weights.is_empty():
+        results["risk_only_hrp"] = {"status": "insufficient_point_in_time_covariance"}
+    else:
+        detail = run_monthly_weighted_backtest_detailed(
+            prices, risk_weights, config=WeightedBacktestConfig(transaction_cost_bps=15.0)
+        )
+        target = data_dir / "gold" / "backtests" / f"{prefix}_risk_only_hrp"
+        target.mkdir(parents=True, exist_ok=True)
+        detail.curve.write_parquet(target / "equity_curve.parquet", compression="zstd")
+        risk_weights.write_parquet(target / "target_weights.parquet", compression="zstd")
+        detail.rejected_orders.write_parquet(target / "rejected_orders.parquet", compression="zstd")
+        results["risk_only_hrp"] = asdict(detail.summary)
+    results.update(_run_reference_benchmarks(data_dir=data_dir, signals=signals, prefix=prefix))
     return results
 
 
@@ -184,11 +294,22 @@ def main() -> None:
     if not feature_path.exists():
         raise SystemExit("Need a monthly feature panel")
     features = pl.read_parquet(feature_path)
-    required = {"target_end_date", "execution_lag_bars"}
+    required = {"target_end_date", "execution_lag_bars", "target_horizon_bars"}
     if missing := required - set(features.columns):
         raise SystemExit(f"Feature panel predates leakage-safe protocol. Rebuild it; missing {sorted(missing)}")
     feature_names = DEFAULT_FEATURES + [name for name in FUNDAMENTAL_FEATURES if name in features.columns]
     prices, price_source = _load_prices(data_dir)
+    horizons = features.get_column("target_horizon_bars").unique().to_list()
+    if horizons != [protocol.label_horizon_bars]:
+        raise SystemExit(
+            f"Feature panel target horizon {horizons} is incompatible with the pre-registered "
+            f"monthly horizon {protocol.label_horizon_bars}; rebuild features"
+        )
+    universe_config = UniverseConfig()
+    universe = build_point_in_time_universe(prices, config=universe_config)
+    features = apply_point_in_time_universe(features, universe)
+    if features.is_empty():
+        raise SystemExit("Point-in-time investible universe is empty under the registered thresholds")
     print(f"feature_panel={feature_path} features={len(feature_names)}")
     print(f"price_source={price_source}")
     print(protocol.warning)

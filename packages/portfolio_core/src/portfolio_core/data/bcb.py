@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import time
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -14,6 +16,7 @@ DEFAULT_SERIES = {
 }
 
 _MAX_DAILY_QUERY_DAYS = 3650
+_MAX_RESPONSE_ATTEMPTS = 3
 
 
 def download_sgs_series(
@@ -34,9 +37,22 @@ def download_sgs_series(
             "dataInicial": chunk_start.strftime("%d/%m/%Y"),
             "dataFinal": chunk_end.strftime("%d/%m/%Y"),
         }
-        response = httpx.get(url, params=params, timeout=timeout_seconds)
-        response.raise_for_status()
-        payload.extend(response.json())
+        for attempt in range(_MAX_RESPONSE_ATTEMPTS):
+            response = httpx.get(url, params=params, timeout=timeout_seconds)
+            response.raise_for_status()
+            try:
+                chunk_payload = response.json()
+                if not isinstance(chunk_payload, list) or not all(
+                    isinstance(item, dict) for item in chunk_payload
+                ):
+                    raise ValueError("unexpected BCB SGS response structure")
+            except (json.JSONDecodeError, ValueError) as exc:
+                if attempt == _MAX_RESPONSE_ATTEMPTS - 1:
+                    raise RuntimeError("BCB SGS returned an invalid JSON response") from exc
+                time.sleep(2**attempt)
+                continue
+            payload.extend(chunk_payload)
+            break
         chunk_start = chunk_end + timedelta(days=1)
     return pl.DataFrame(payload).select(
         pl.col("data").str.strptime(pl.Date, "%d/%m/%Y").alias("date"),

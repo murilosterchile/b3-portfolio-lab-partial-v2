@@ -78,6 +78,22 @@ def test_zero_account_denominator_produces_missing_ratio_not_extreme_value() -> 
     assert snapshot["net_margin"].item() is None
 
 
+def test_negative_equity_is_flagged_and_never_made_positive() -> None:
+    statements = pl.DataFrame(
+        {
+            "CD_CVM": [123, 123, 123],
+            "DT_REFER": [date(2024, 3, 31)] * 3,
+            "DT_RECEB": [date(2024, 5, 10)] * 3,
+            "CD_CONTA": ["1", "2.03", "3.11"],
+            "VL_CONTA": [100.0, -20.0, 5.0],
+        }
+    )
+    snapshot = build_company_fundamental_snapshots(statements)
+    assert snapshot["negative_equity"].item()
+    assert snapshot["roe_proxy"].item() is None
+    assert snapshot["log_equity"].item() is None
+
+
 def test_same_receipt_and_reference_selects_highest_cvm_version() -> None:
     statements = pl.DataFrame(
         {

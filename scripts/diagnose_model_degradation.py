@@ -18,7 +18,12 @@ from portfolio_core.ml.diagnostics import (
     yearly_topk_report,
 )
 from portfolio_core.ml.protocol import ResearchProtocol
-from portfolio_core.ml.walk_forward import DEFAULT_FEATURES, TrainingPolicy, train_once
+from portfolio_core.ml.walk_forward import (
+    DEFAULT_FEATURES,
+    TrainingPolicy,
+    train_once,
+    train_ranker_once,
+)
 
 
 def _candidate_policies() -> list[tuple[str, TrainingPolicy]]:
@@ -40,6 +45,7 @@ def _evaluate_policy(
     features: list[str],
     policy: TrainingPolicy,
     model_config: dict | None,
+    model_kind: str = "regression",
 ) -> tuple[dict[str, object], pl.DataFrame, pl.DataFrame]:
     fold_rows: list[dict[str, object]] = []
     prediction_frames: list[pl.DataFrame] = []
@@ -49,7 +55,8 @@ def _evaluate_policy(
         valid = frame.filter(pl.col("trade_date").dt.year() == year)
         if train.height < 500 or valid.height < 100:
             continue
-        model, metrics = train_once(
+        trainer = train_ranker_once if model_kind == "ranking" else train_once
+        model, metrics = trainer(
             train,
             valid,
             feature_names=features,
@@ -65,8 +72,16 @@ def _evaluate_policy(
                 how="inner",
             ).with_columns(pl.lit(year).alias("fold_year"))
         )
-        fold_rows.append({"year": year, **asdict(metrics)})
-        importance_frames.append(model_importance(model, fold_year=year))
+        fold_rows.append(
+            {
+                "year": year,
+                **asdict(metrics),
+                "disabled_features": list(model.disabled_feature_names),
+                "training_feature_coverage": model.training_feature_coverage,
+            }
+        )
+        if model_kind == "regression":
+            importance_frames.append(model_importance(model, fold_year=year))
     if not fold_rows:
         raise RuntimeError("No eligible development folds for policy")
     fold = pl.DataFrame(fold_rows)
@@ -78,16 +93,44 @@ def _evaluate_policy(
     )
     top10 = topk.filter(pl.col("k") == 10)
     rank = fold["rank_ic"].to_numpy()
+    recent_fold = fold.filter(pl.col("year").is_between(2022, 2025))
+    recent_rank = recent_fold["rank_ic"].to_numpy()
     spread = top10["top_minus_bottom"].to_numpy() if not top10.is_empty() else np.asarray([])
+    previous: set[str] = set()
+    turnovers: list[float] = []
+    for cross in predictions.partition_by("trade_date", maintain_order=True):
+        selected = set(
+            cross.sort("predicted_excess_return", descending=True).head(10)["ticker"].to_list()
+        )
+        if previous:
+            turnovers.append(1.0 - len(previous & selected) / max(len(selected), 1))
+        previous = selected
+    mean_turnover = float(np.mean(turnovers)) if turnovers else 0.0
+    gross_spread = float(np.mean(spread)) if len(spread) else None
     summary = {
         "mean_rank_ic": float(np.mean(rank)),
         "median_rank_ic": float(np.median(rank)),
         "rank_ic_std": float(np.std(rank, ddof=1)) if len(rank) > 1 else 0.0,
         "rank_ic_worst_fold": float(np.min(rank)),
+        "recent_mean_rank_ic": float(np.mean(recent_rank)) if len(recent_rank) else None,
         "mean_precision_at_10": float(top10["precision"].mean()) if not top10.is_empty() else None,
         "mean_ndcg_at_10": float(top10["ndcg"].mean()) if not top10.is_empty() else None,
-        "mean_top10_spread": float(np.mean(spread)) if len(spread) else None,
+        "mean_top10_spread": gross_spread,
+        "mean_top10_turnover": mean_turnover,
+        "mean_top10_net_spread_15bps": (
+            gross_spread - mean_turnover * 15.0 / 10_000.0
+            if gross_spread is not None
+            else None
+        ),
+        "model_kind": model_kind,
         "folds": fold_rows,
+        "training_policy": {
+            "window_years": policy.window_years,
+            "half_life_years": policy.half_life_years,
+            "target_column": policy.target_column,
+            "label_end_column": policy.label_end_column,
+            "pre_validation_embargo_days": policy.pre_validation_embargo_days,
+        },
     }
     importance = pl.concat(importance_frames, how="vertical_relaxed") if importance_frames else pl.DataFrame()
     return summary, topk, importance
@@ -140,6 +183,7 @@ def main() -> None:
             model_config = tuned.get("config")
 
     policy_results: dict[str, object] = {}
+    ranking_comparison_policy = TrainingPolicy()
     if not args.skip_policy_grid:
         for name, policy in _candidate_policies():
             print(f"policy={name}")
@@ -154,6 +198,42 @@ def main() -> None:
             if not importance.is_empty():
                 importance.write_csv(out_dir / f"model_importance_{name}.csv")
         _write_json(out_dir / "training_policy_comparison.json", policy_results)
+        eligible: list[tuple[float, str, dict[str, object]]] = []
+        for name, raw in policy_results.items():
+            summary = dict(raw)
+            recent = summary.get("recent_mean_rank_ic")
+            spread = summary.get("mean_top10_net_spread_15bps")
+            if recent is None or spread is None:
+                continue
+            score = float(recent) + float(spread) - 0.50 * float(summary["rank_ic_std"])
+            summary["selection_score"] = score
+            # Pre-registered stability gate. A challenger is not selected merely
+            # because it is the least bad one.
+            if (
+                float(summary["mean_rank_ic"]) > 0
+                and float(recent) > 0
+                and float(summary["rank_ic_worst_fold"]) > -0.10
+                and float(spread) > 0
+            ):
+                eligible.append((score, name, summary))
+        if eligible:
+            score, name, selected = max(eligible, key=lambda item: item[0])
+            ranking_comparison_policy = TrainingPolicy(**selected["training_policy"])
+            model_dir.mkdir(parents=True, exist_ok=True)
+            _write_json(
+                model_dir / "selected_training_policy.json",
+                {
+                    "version": 1,
+                    "selected_name": name,
+                    "selection_score": score,
+                    "training_policy": selected["training_policy"],
+                    "development_end_year": protocol.development_end_year,
+                    "diagnostic_year": protocol.diagnostic_year,
+                    "selection_data_max": str(development["trade_date"].max()),
+                    "all_challengers": policy_results,
+                    "warning": protocol.warning,
+                },
+            )
 
     target_results: dict[str, object] = {}
     for target in ("future_return", "target_excess_return", "target_cross_sectional_rank"):
@@ -170,6 +250,19 @@ def main() -> None:
         target_results[target] = summary
         topk.write_csv(out_dir / f"topk_{name}.csv")
     _write_json(out_dir / "target_comparison.json", target_results)
+
+    ranking_results: dict[str, object] = {}
+    for model_kind in ("regression", "ranking"):
+        summary, topk, _ = _evaluate_policy(
+            development,
+            features=features,
+            policy=ranking_comparison_policy,
+            model_config=model_config,
+            model_kind=model_kind,
+        )
+        ranking_results[model_kind] = summary
+        topk.write_csv(out_dir / f"topk_model_{model_kind}.csv")
+    _write_json(out_dir / "regression_vs_ranking.json", ranking_results)
 
     manifest = {
         "feature_panel": str(panel),

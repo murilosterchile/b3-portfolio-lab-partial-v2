@@ -17,6 +17,8 @@ FUNDAMENTAL_LEVEL_FEATURES = [
     "gross_profitability",
     "operating_cash_flow_to_assets",
     "equity_to_assets",
+    "leverage_to_assets",
+    "asset_growth",
     "log_revenue",
     "log_assets",
     "log_equity",
@@ -29,7 +31,32 @@ FUNDAMENTAL_RANK_FEATURES = [
     for name in FUNDAMENTAL_LEVEL_FEATURES
     if name not in {"fundamental_age_days", "negative_equity", "stale_fundamental"}
 ]
-FUNDAMENTAL_FEATURES = FUNDAMENTAL_LEVEL_FEATURES + FUNDAMENTAL_RANK_FEATURES
+FUNDAMENTAL_SECTOR_RANK_FEATURES = [
+    name.replace("rank_", "sector_rank_", 1) for name in FUNDAMENTAL_RANK_FEATURES
+]
+FUNDAMENTAL_MISSINGNESS_FEATURES = [
+    "fundamental_available_count",
+    "fundamental_missing_fraction",
+]
+SECTOR_NEUTRAL_TECHNICAL_FEATURES = [
+    f"sector_rank_{name}"
+    for name in (
+        "momentum_12_1",
+        "medium_term_momentum",
+        "short_term_reversal_5d",
+        "volatility_63d",
+        "residual_volatility_63d",
+        "log_traded_value_21d",
+        "amihud_illiquidity_21d",
+    )
+]
+FUNDAMENTAL_FEATURES = (
+    FUNDAMENTAL_LEVEL_FEATURES
+    + FUNDAMENTAL_RANK_FEATURES
+    + FUNDAMENTAL_SECTOR_RANK_FEATURES
+    + FUNDAMENTAL_MISSINGNESS_FEATURES
+    + SECTOR_NEUTRAL_TECHNICAL_FEATURES
+)
 
 
 _FLOW_ACCOUNTS = {
@@ -134,6 +161,12 @@ def build_company_fundamental_snapshots(statements: pl.DataFrame) -> pl.DataFram
     snapshots = frame.group_by(["CD_CVM", "DT_REFER", "DT_RECEB"]).agg(
         pl.when(pl.col("CD_CONTA") == "1").then(pl.col("VL_CONTA")).max().alias("assets"),
         pl.when(pl.col("CD_CONTA") == "2.03").then(pl.col("VL_CONTA")).max().alias("equity"),
+        pl.when(pl.col("CD_CONTA") == "2.01").then(pl.col("VL_CONTA")).max().alias(
+            "current_liabilities"
+        ),
+        pl.when(pl.col("CD_CONTA") == "2.02").then(pl.col("VL_CONTA")).max().alias(
+            "noncurrent_liabilities"
+        ),
     )
     snapshots = snapshots.sort(["CD_CVM", "DT_RECEB", "DT_REFER"]).unique(
         subset=["CD_CVM", "DT_RECEB"], keep="last", maintain_order=True
@@ -159,6 +192,22 @@ def build_company_fundamental_snapshots(statements: pl.DataFrame) -> pl.DataFram
             .otherwise(None)
         )
 
+    snapshots = snapshots.sort(["CD_CVM", "DT_RECEB", "DT_REFER"]).with_columns(
+        pl.when(
+            pl.col("current_liabilities").is_not_null()
+            | pl.col("noncurrent_liabilities").is_not_null()
+        )
+        .then(
+            pl.col("current_liabilities").fill_null(0.0)
+            + pl.col("noncurrent_liabilities").fill_null(0.0)
+        )
+        .otherwise(None)
+        .alias("total_liabilities"),
+        pl.when(pl.col("assets").shift(1).over("CD_CVM") > 0)
+        .then(pl.col("assets") / pl.col("assets").shift(1).over("CD_CVM") - 1.0)
+        .otherwise(None)
+        .alias("asset_growth"),
+    )
     result = snapshots.with_columns(
         safe_ratio("net_income", "revenue").alias("net_margin"),
         safe_ratio("net_income", "equity").alias("roe_proxy"),
@@ -168,6 +217,7 @@ def build_company_fundamental_snapshots(statements: pl.DataFrame) -> pl.DataFram
         safe_ratio("gross_profit", "assets").alias("gross_profitability"),
         safe_ratio("operating_cash_flow", "assets").alias("operating_cash_flow_to_assets"),
         safe_ratio("equity", "assets").alias("equity_to_assets"),
+        safe_ratio("total_liabilities", "assets").alias("leverage_to_assets"),
         pl.when(pl.col("revenue") > 0).then(pl.col("revenue").log1p()).alias("log_revenue"),
         pl.when(pl.col("assets") > 0).then(pl.col("assets").log1p()).alias("log_assets"),
         pl.when(pl.col("equity") > 0).then(pl.col("equity").log1p()).alias("log_equity"),
@@ -243,6 +293,26 @@ def attach_fundamentals_point_in_time(
         ).alias("stale_fundamental")
     )
 
+    fundamental_observations = [
+        name
+        for name in FUNDAMENTAL_LEVEL_FEATURES
+        if name in joined.columns
+        and name not in {"fundamental_age_days", "negative_equity", "stale_fundamental"}
+    ]
+    if fundamental_observations:
+        joined = joined.with_columns(
+            pl.sum_horizontal(
+                [pl.col(name).is_not_null().cast(pl.Int64) for name in fundamental_observations]
+            ).alias("fundamental_available_count"),
+            (
+                1.0
+                - pl.sum_horizontal(
+                    [pl.col(name).is_not_null().cast(pl.Float64) for name in fundamental_observations]
+                )
+                / float(len(fundamental_observations))
+            ).alias("fundamental_missing_fraction"),
+        )
+
     rankable = {name.removeprefix("rank_") for name in FUNDAMENTAL_RANK_FEATURES}
     available = [name for name in FUNDAMENTAL_LEVEL_FEATURES if name in joined.columns and name in rankable]
     for feature in available:
@@ -252,4 +322,26 @@ def attach_fundamentals_point_in_time(
                 / (pl.col(feature).is_not_null() & pl.col(feature).is_finite()).sum().over("trade_date")
             ).alias(f"rank_{feature}")
         )
+        if "sector" in joined.columns:
+            joined = joined.with_columns(
+                (
+                    pl.col(feature).rank(method="average").over(["trade_date", "sector"])
+                    / (pl.col(feature).is_not_null() & pl.col(feature).is_finite())
+                    .sum()
+                    .over(["trade_date", "sector"])
+                ).alias(f"sector_rank_{feature}")
+            )
+    if "sector" in joined.columns:
+        for output_name in SECTOR_NEUTRAL_TECHNICAL_FEATURES:
+            feature = output_name.removeprefix("sector_rank_")
+            if feature not in joined.columns:
+                continue
+            joined = joined.with_columns(
+                (
+                    pl.col(feature).rank(method="average").over(["trade_date", "sector"])
+                    / (pl.col(feature).is_not_null() & pl.col(feature).is_finite())
+                    .sum()
+                    .over(["trade_date", "sector"])
+                ).alias(output_name)
+            )
     return joined

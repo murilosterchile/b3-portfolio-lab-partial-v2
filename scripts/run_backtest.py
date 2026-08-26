@@ -32,7 +32,7 @@ from portfolio_core.ml.walk_forward import (
     load_signal_model,
     train_once,
 )
-from portfolio_core.quant.factors import composite_quant_score
+from portfolio_core.quant.factors import composite_quant_score, learn_factor_sleeve_weights
 from portfolio_core.research import evaluate_acceptance_gates, write_experiment_record
 
 
@@ -53,7 +53,14 @@ def _percentile(expr: pl.Expr) -> pl.Expr:
 
 def _strategy_signals(frame: pl.DataFrame, predictions: pl.DataFrame) -> pl.DataFrame:
     return frame.join(
-        predictions.select("trade_date", "ticker", "predicted_excess_return", "prediction_uncertainty"),
+        predictions.select(
+            "trade_date",
+            "ticker",
+            "predicted_excess_return",
+            "ensemble_disagreement",
+            "calibrated_uncertainty",
+            "prediction_uncertainty",
+        ),
         on=["trade_date", "ticker"],
         how="inner",
     ).with_columns(
@@ -62,14 +69,28 @@ def _strategy_signals(frame: pl.DataFrame, predictions: pl.DataFrame) -> pl.Data
     ).with_columns(
         (pl.col("predicted_excess_return") - 0.5 * pl.col("prediction_uncertainty")).alias("signal_ml"),
         pl.col("rank_momentum_12_1").fill_null(0.5).alias("signal_momentum"),
-        pl.col("quant_score").fill_null(0.5).alias("signal_quant"),
+        pl.col("low_volatility_score").fill_null(0.5).alias("signal_low_volatility"),
+        pl.col("quality_score").fill_null(0.5).alias("signal_quality"),
+        pl.col("quant_score_equal").fill_null(0.5).alias("signal_quant"),
+        pl.col("quant_score").fill_null(0.5).alias("signal_quant_learned"),
         (
             0.65 * pl.col("ml_percentile")
-            + 0.25 * pl.col("quant_score").fill_null(0.5)
+            + 0.25 * pl.col("quant_score_equal").fill_null(0.5)
             + 0.10 * (1.0 - pl.col("uncertainty_percentile"))
         ).alias("signal_research_v2"),
         pl.lit(1.0).alias("signal_equal_weight"),
         pl.col("rank_log_volume_21d").fill_null(0.0).alias("signal_liquidity"),
+    )
+
+
+def _score_factor_challengers(
+    frame: pl.DataFrame, learned_weights: dict[str, float]
+) -> pl.DataFrame:
+    equal = composite_quant_score(frame).select(
+        "trade_date", "ticker", pl.col("quant_score").alias("quant_score_equal")
+    )
+    return composite_quant_score(frame, sleeve_weights=learned_weights).join(
+        equal, on=["trade_date", "ticker"], how="left", validate="1:1"
     )
 
 
@@ -167,9 +188,14 @@ def _run_strategies(
         "top_liquidity_equal_weight": ("signal_liquidity", BacktestConfig(top_k=50, transaction_cost_bps=15.0, selection_buffer=10)),
         "ml_top10": ("signal_ml", BacktestConfig(top_k=10, transaction_cost_bps=15.0)),
         "momentum_top10": ("signal_momentum", BacktestConfig(top_k=10, transaction_cost_bps=15.0, selection_buffer=5)),
+        "low_volatility_top10": ("signal_low_volatility", BacktestConfig(top_k=10, transaction_cost_bps=15.0, selection_buffer=5)),
+        "quality_top10": ("signal_quality", BacktestConfig(top_k=10, transaction_cost_bps=15.0, selection_buffer=5)),
         "multifactor_top10": ("signal_quant", BacktestConfig(top_k=10, transaction_cost_bps=15.0, selection_buffer=5)),
+        "multifactor_learned_top10": ("signal_quant_learned", BacktestConfig(top_k=10, transaction_cost_bps=15.0, selection_buffer=5)),
         "research_v2": ("signal_research_v2", BacktestConfig(top_k=10, transaction_cost_bps=15.0, selection_buffer=5)),
     }
+    if signals["quality_score"].n_unique() <= 1:
+        strategies.pop("quality_top10")
     results: dict[str, dict[str, object]] = {}
     for name, (column, config) in strategies.items():
         detail = run_monthly_topk_backtest_detailed(
@@ -285,9 +311,20 @@ def main() -> None:
     )
     args = parser.parse_args()
     protocol = ResearchProtocol()
-    policy = TrainingPolicy()
     data_dir = Path(os.getenv("DATA_DIR", "data"))
     model_dir = Path(os.getenv("MODEL_DIR", "models"))
+    selected_policy_path = model_dir / "selected_training_policy.json"
+    if not selected_policy_path.exists():
+        raise SystemExit(
+            "Missing development-only policy selection. Run make diagnose-model-degradation first."
+        )
+    selected_policy = json.loads(selected_policy_path.read_text(encoding="utf-8"))
+    if (
+        int(selected_policy.get("development_end_year", -1)) != protocol.development_end_year
+        or int(selected_policy.get("diagnostic_year", -1)) != protocol.diagnostic_year
+    ):
+        raise SystemExit("Selected training policy does not match the research protocol")
+    policy = TrainingPolicy(**selected_policy["training_policy"])
     fundamental_path = data_dir / "gold" / "features" / "monthly_features_with_fundamentals.parquet"
     technical_path = data_dir / "gold" / "features" / "monthly_features.parquet"
     feature_path = fundamental_path if fundamental_path.exists() else technical_path
@@ -346,7 +383,11 @@ def main() -> None:
         diagnostic = _diagnostic_features(features, protocol)
         if diagnostic.is_empty():
             raise SystemExit(f"No features available for diagnostic year {protocol.diagnostic_year}")
-        scored = composite_quant_score(diagnostic)
+        factor_path = model_dir / "factor_sleeve_challenger.json"
+        if not factor_path.exists():
+            raise SystemExit("Missing factor sleeve weights; retrain the governed artifact")
+        factor_weights = json.loads(factor_path.read_text(encoding="utf-8"))["weights"]
+        scored = _score_factor_challengers(diagnostic, factor_weights)
         signals = _strategy_signals(scored, model.predict(diagnostic))
         diagnostic_signals_path = data_dir / "gold" / "backtests" / f"diagnostic_{protocol.diagnostic_year}_signals.parquet"
         diagnostic_signals_path.parent.mkdir(parents=True, exist_ok=True)
@@ -393,7 +434,14 @@ def main() -> None:
             model_config=model_config,
             training_policy=policy,
         )
-        scored = composite_quant_score(test)
+        validation_start = test["trade_date"].min()
+        factor_train = train.filter(pl.col("target_end_date") < pl.lit(validation_start))
+        if policy.window_years is not None:
+            factor_train = factor_train.filter(
+                pl.col("trade_date").dt.year() >= year - policy.window_years
+            )
+        fold_factor_weights = learn_factor_sleeve_weights(factor_train)
+        scored = _score_factor_challengers(test, fold_factor_weights)
         combined = _strategy_signals(scored, model.predict(test)).with_columns(pl.lit(year).alias("oos_year"))
         prediction_frames.append(combined)
         fold_metrics[year] = asdict(metrics)
@@ -413,7 +461,10 @@ def main() -> None:
         data_dir=data_dir,
         prefix="development",
         price_source=price_source,
-        methodology="purged expanding walk-forward; next-close execution; development data through 2025 only",
+        methodology=(
+            f"purged selected-policy walk-forward ({selected_policy['selected_name']}); "
+            "next-close execution; development data through 2025 only"
+        ),
     )
 
     topk = yearly_topk_report(
@@ -463,7 +514,10 @@ def main() -> None:
         data_dir=data_dir,
         features=feature_names,
         parameters={"model_config": model_config, "transaction_cost_bps": 15.0},
-        training_window={"type": "expanding", "half_life_years": None},
+        training_window={
+            "selected_name": selected_policy["selected_name"],
+            **selected_policy["training_policy"],
+        },
         validation_folds=sorted(fold_metrics),
         metrics={"acceptance": gate, "strategies": results, "recent_rank_ic": recent_rank_ic},
         notes=[protocol.warning, "Same-close execution disabled", "Overlapping labels purged"],

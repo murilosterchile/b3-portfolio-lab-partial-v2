@@ -41,12 +41,24 @@ def main() -> None:
     if len(horizon_values) != 1:
         raise SystemExit(f"Expected one target horizon in the feature panel, got {horizon_values}")
     feature_names = DEFAULT_FEATURES + [name for name in FUNDAMENTAL_FEATURES if name in frame.columns]
+    selected_policy_path = model_dir / "selected_training_policy.json"
+    if not selected_policy_path.exists():
+        raise SystemExit(
+            "Missing development-only policy selection. Run make diagnose-model-degradation first."
+        )
+    selected_policy = json.loads(selected_policy_path.read_text(encoding="utf-8"))
+    if (
+        int(selected_policy.get("development_end_year", -1)) != protocol.development_end_year
+        or int(selected_policy.get("diagnostic_year", -1)) != protocol.diagnostic_year
+    ):
+        raise SystemExit("Selected training policy does not match the research protocol")
+    policy = TrainingPolicy(**selected_policy["training_policy"])
     result = tune_ensemble(
         development,
         feature_names=feature_names,
         n_trials=args.trials,
         n_validation_years=args.validation_years,
-        training_policy=TrainingPolicy(),
+        training_policy=policy,
     )
     model_dir.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -57,6 +69,7 @@ def main() -> None:
         "n_trials": result.n_trials,
         "features": feature_names,
         "config": result.best_config,
+        "training_policy": selected_policy,
         "warning": protocol.warning,
         "selection_rule": "No diagnostic-year observation was used for hyperparameter selection.",
         "target_horizon_bars": horizon_values[0],

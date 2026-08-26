@@ -34,6 +34,7 @@ class AssetSnapshot(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     as_of: Mapped[str] = mapped_column(String(10), index=True)
     ticker: Mapped[str] = mapped_column(String(16), index=True)
+    issuer_id: Mapped[str | None] = mapped_column(String(32), index=True, nullable=True)
     company: Mapped[str] = mapped_column(String(128))
     sector: Mapped[str] = mapped_column(String(64), index=True)
     price: Mapped[float] = mapped_column(Float)

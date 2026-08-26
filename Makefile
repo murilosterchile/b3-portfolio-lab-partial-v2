@@ -22,7 +22,7 @@ help:
 	  'make horizon-challengers               - build development-only 21/42/63-bar target panels' \
 	  'make risk-benchmarks                    - sample vs Ledoit-Wolf minvar/inverse-vol/HRP on <=2025' \
 	  'make tune TRIALS=25                    - purged time-aware tuning; 2026 never enters selection' \
-	  'make train                            - train final artifact with labels known by 2025-12-31' \
+	  'make train                            - train selected <=2025 policy (run diagnostics first)' \
 	  'make backtest                         - development-only purged walk-forward + 1/N + gates' \
 	  'make backtest USE_TRAINED_MODEL=1     - diagnostic 2026 only; cannot change gates' \
 	  'make qkp-ablation                      - isolate ML vs QKP vs HRP on development data' \

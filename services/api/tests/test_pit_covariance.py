@@ -37,3 +37,22 @@ def test_future_prices_do_not_change_asof_covariance(tmp_path) -> None:
     )
     assert first is not None and second is not None
     assert np.allclose(first, second)
+
+
+def test_missing_quotes_reduce_risk_eligibility_instead_of_creating_zero_returns(tmp_path) -> None:
+    cutoff = date(2024, 1, 1) + timedelta(days=90)
+    _write_prices(tmp_path, future_multiplier=1.0)
+    path = tmp_path / "silver" / "b3_prices_adjusted" / "year=2024" / "part-000.parquet"
+    frame = pl.read_parquet(path).with_row_index("row_number")
+    frame = frame.filter(
+        ~(
+            (pl.col("ticker") == "B3")
+            & (pl.col("trade_date") <= cutoff)
+            & (pl.col("row_number") % 5 == 1)
+        )
+    ).drop("row_number")
+    frame.write_parquet(path)
+    result = historical_correlation(
+        tickers=["A3", "B3"], data_dir=str(tmp_path), as_of=cutoff, lookback_observations=80
+    )
+    assert result is None

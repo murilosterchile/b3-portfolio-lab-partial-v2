@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import logging
 from datetime import date
 from pathlib import Path
 
 import numpy as np
 import polars as pl
 from portfolio_core.data_quality import DataQualityError, validate_prices
-from portfolio_core.quant.risk import covariance_to_correlation, ledoit_wolf_covariance
+from portfolio_core.quant.risk import covariance_to_correlation, pairwise_price_covariance
+
+
+logger = logging.getLogger(__name__)
 
 
 def historical_correlation(
@@ -48,19 +52,26 @@ def historical_correlation(
         missing = [ticker for ticker in tickers if ticker not in wide.columns]
         if missing:
             return None
-        values = (
-            wide.select(tickers)
-            .fill_null(strategy="forward")
-            .tail(lookback_observations + 1)
-            .to_numpy()
-        )
+        values = wide.select(tickers).tail(lookback_observations + 1).to_numpy()
         if values.shape[0] < 80:
             return None
-        returns = values[1:] / values[:-1] - 1.0
-        complete = returns[np.all(np.isfinite(returns), axis=1)]
-        if complete.shape[0] < 60:
+        estimate = pairwise_price_covariance(
+            values,
+            tickers,
+            min_return_observations=60,
+            minimum_coverage=0.80,
+        )
+        if estimate is None:
             return None
-        return covariance_to_correlation(ledoit_wolf_covariance(complete))
+        eligible, covariance, effective_observations = estimate
+        if eligible != tickers:
+            return None
+        logger.info(
+            "PIT covariance effective observations as_of=%s observations=%s",
+            as_of,
+            effective_observations,
+        )
+        return covariance_to_correlation(covariance)
     except DataQualityError:
         raise
     except (OSError, ValueError, pl.exceptions.PolarsError):

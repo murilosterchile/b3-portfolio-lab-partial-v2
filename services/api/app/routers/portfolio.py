@@ -8,7 +8,12 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from portfolio_core.optimizer import Candidate, build_portfolio_qkp, solve_portfolio
-from portfolio_core.quant import hierarchical_risk_parity, inverse_volatility, minimum_variance
+from portfolio_core.quant import (
+    cost_aware_allocation,
+    hierarchical_risk_parity,
+    inverse_volatility,
+    minimum_variance,
+)
 
 from ..config import get_settings
 from ..db import get_db
@@ -51,11 +56,8 @@ def optimize(payload: OptimizeRequest, db: Session = Depends(get_db)) -> Optimiz
             select(AssetSnapshot)
             .where(AssetSnapshot.as_of == latest)
             .order_by(
-                desc(
-                    0.80 * AssetSnapshot.ml_score
-                    + 0.15 * AssetSnapshot.quant_score
-                    + 0.05 * AssetSnapshot.liquidity_score
-                )
+                desc(AssetSnapshot.liquidity_score),
+                desc(AssetSnapshot.ml_score),
             )
             .limit(payload.candidate_count)
         )
@@ -67,15 +69,21 @@ def optimize(payload: OptimizeRequest, db: Session = Depends(get_db)) -> Optimiz
         covariance_as_of = date.fromisoformat(str(latest)[:10])
     except ValueError as exc:
         raise HTTPException(status_code=500, detail="Invalid model snapshot as_of date") from exc
+    settings = get_settings()
     corr = historical_correlation(
         tickers=[row.ticker for row in rows],
-        data_dir=get_settings().data_dir,
+        data_dir=settings.data_dir,
         as_of=covariance_as_of,
     )
     correlation_source = f"B3 history through {covariance_as_of} + Ledoit-Wolf"
     if corr is None:
+        if not settings.demo_mode:
+            raise HTTPException(
+                status_code=409,
+                detail="Insufficient consecutive PIT price coverage for the requested candidates",
+            )
         corr = _correlation(rows)
-        correlation_source = "synthetic demo fallback"
+        correlation_source = "synthetic demo-only fallback"
     candidates = [
         Candidate(
             ticker=row.ticker,
@@ -86,6 +94,7 @@ def optimize(payload: OptimizeRequest, db: Session = Depends(get_db)) -> Optimiz
             quant_score=row.quant_score,
             liquidity_score=row.liquidity_score,
             volatility_annual=row.volatility_annual,
+            issuer_id=row.issuer_id or row.ticker[:4],
         )
         for row in rows
     ]
@@ -98,9 +107,12 @@ def optimize(payload: OptimizeRequest, db: Session = Depends(get_db)) -> Optimiz
         risk_aversion=payload.risk_aversion,
         uncertainty_penalty=payload.uncertainty_penalty,
         min_position_fraction=1.0 / max(payload.max_positions * 1.8, 1.0),
-        sector_max_count={"Financials": 3, "Energy": 2, "Materials": 2, "Utilities": 3, "Consumer": 3},
+        sector_max_count={
+            sector: max(1, int(0.40 * payload.max_positions))
+            for sector in {row.sector for row in rows}
+        },
     )
-    result = solve_portfolio(instance, backend=get_settings().qkp_solver)
+    result = solve_portfolio(instance, backend=settings.qkp_solver)
     if not result.selected_indices:
         raise HTTPException(status_code=409, detail=f"Optimizer returned {result.status}")
 
@@ -113,10 +125,32 @@ def optimize(payload: OptimizeRequest, db: Session = Depends(get_db)) -> Optimiz
             weights = minimum_variance(cov, max_weight=min(0.30, 1.0))
         elif payload.allocation == "inverse_vol":
             weights = inverse_volatility(cov)
-        else:
+        elif payload.allocation == "hrp":
             weights = hierarchical_risk_parity(cov)
+        else:
+            weights = cost_aware_allocation(
+                cov,
+                max_weight=0.25,
+                turnover_penalty=0.01,
+                sectors=[row.sector for row in selected_rows],
+                max_sector_weight=0.40,
+                issuer_ids=[row.issuer_id or row.ticker[:4] for row in selected_rows],
+                max_issuer_weight=0.25,
+                liquidity_weight_caps=np.clip(
+                    0.10
+                    + 0.20
+                    * np.asarray([row.liquidity_score for row in selected_rows])
+                    / 100.0,
+                    0.10,
+                    0.30,
+                ),
+            )
     except Exception:
-        weights = inverse_volatility(cov)
+        weights = (
+            np.full(len(selected_rows), 1.0 / len(selected_rows))
+            if payload.allocation == "cost_aware_minvar"
+            else inverse_volatility(cov)
+        )
 
     mu = np.asarray([row.predicted_excess_return for row in selected_rows])
     expected = float(weights @ mu)
@@ -124,6 +158,7 @@ def optimize(payload: OptimizeRequest, db: Session = Depends(get_db)) -> Optimiz
     positions = [
         PositionOut(
             ticker=row.ticker,
+            issuer_id=row.issuer_id or row.ticker[:4],
             company=row.company,
             sector=row.sector,
             weight=float(weight),

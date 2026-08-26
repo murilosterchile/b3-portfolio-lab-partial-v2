@@ -268,6 +268,7 @@ def run_monthly_topk_backtest_detailed(
         execution_index = date_to_index[execution_date]
         ranked_tickers: list[str] = []
         seen_issuers: set[str] = set()
+        issuer_by_ticker: dict[str, str] = {}
         for row in cross.sort(score_column, descending=True).iter_rows(named=True):
             if len(ranked_tickers) >= config.top_k + config.selection_buffer:
                 break
@@ -289,6 +290,7 @@ def run_monthly_topk_backtest_detailed(
                 )
                 continue
             seen_issuers.add(issuer)
+            issuer_by_ticker[ticker] = issuer
             ranked_tickers.append(ticker)
         selected = _buffered_selection(
             ranked_tickers,
@@ -306,6 +308,7 @@ def run_monthly_topk_backtest_detailed(
                         "signal_date": signal_date,
                         "execution_date": execution_date,
                         "ticker": ticker,
+                        "issuer_id": issuer_by_ticker[ticker],
                         "target_weight": 1.0 / len(selected),
                     }
                 )
@@ -424,7 +427,13 @@ def run_monthly_topk_backtest_detailed(
         pl.lit(price_column).alias("price_basis")
     )
     selections = pl.DataFrame(selection_rows) if selection_rows else pl.DataFrame(
-        schema={"signal_date": pl.Date, "execution_date": pl.Date, "ticker": pl.Utf8, "target_weight": pl.Float64}
+        schema={
+            "signal_date": pl.Date,
+            "execution_date": pl.Date,
+            "ticker": pl.Utf8,
+            "issuer_id": pl.Utf8,
+            "target_weight": pl.Float64,
+        }
     )
     contributions = pl.DataFrame(contribution_rows) if contribution_rows else pl.DataFrame(
         schema={"trade_date": pl.Date, "ticker": pl.Utf8, "weight_at_previous_close": pl.Float64, "asset_return": pl.Float64, "return_contribution": pl.Float64, "stale_age_sessions": pl.Int64}

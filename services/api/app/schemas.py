@@ -18,6 +18,7 @@ class AssetOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     ticker: str
+    issuer_id: str | None = None
     company: str
     sector: str
     price: float
@@ -34,14 +35,15 @@ class OptimizeRequest(BaseModel):
     budget: float = Field(gt=100.0, le=100_000_000.0)
     min_positions: int = Field(default=6, ge=1, le=30)
     max_positions: int = Field(default=10, ge=1, le=30)
-    candidate_count: int = Field(default=18, ge=5, le=50)
+    candidate_count: int = Field(default=30, ge=5, le=75)
     risk_aversion: float = Field(default=0.7, ge=0.0, le=5.0)
     uncertainty_penalty: float = Field(default=0.5, ge=0.0, le=3.0)
-    allocation: Literal["hrp", "minvar", "inverse_vol"] = "hrp"
+    allocation: Literal["hrp", "minvar", "inverse_vol", "cost_aware_minvar"] = "hrp"
 
 
 class PositionOut(BaseModel):
     ticker: str
+    issuer_id: str
     company: str
     sector: str
     weight: float

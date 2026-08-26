@@ -24,6 +24,7 @@ def _suggest_config(trial: optuna.Trial) -> dict:
         "num_leaves": trial.suggest_int("lgb_num_leaves", 15, 63),
         "min_child_samples": trial.suggest_int("lgb_min_child_samples", 20, 120, step=10),
         "subsample": trial.suggest_float("lgb_subsample", 0.65, 1.0),
+        "subsample_freq": 1,
         "colsample_bytree": trial.suggest_float("lgb_colsample", 0.65, 1.0),
         "reg_alpha": trial.suggest_float("lgb_reg_alpha", 1e-3, 5.0, log=True),
         "reg_lambda": trial.suggest_float("lgb_reg_lambda", 1e-2, 10.0, log=True),

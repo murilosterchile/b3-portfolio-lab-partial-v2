@@ -109,3 +109,21 @@ def test_stock_split_does_not_change_qkp_selection() -> None:
     before = solve_exact_branch_and_bound(build_portfolio_qkp(base, **kwargs))
     after = solve_exact_branch_and_bound(build_portfolio_qkp(split, **kwargs))
     assert before.selected_names == after.selected_names
+
+
+def test_qkp_never_selects_two_share_classes_from_same_issuer() -> None:
+    candidates = [
+        Candidate("AAAA3", 10.0, 0.20, 0.0, issuer_id="issuer-a"),
+        Candidate("AAAA4", 11.0, 0.19, 0.0, issuer_id="issuer-a"),
+        Candidate("BBBB3", 12.0, 0.10, 0.0, issuer_id="issuer-b"),
+    ]
+    instance = build_portfolio_qkp(
+        candidates,
+        correlation=np.eye(3),
+        budget=1_000.0,
+        min_positions=2,
+        max_positions=2,
+        risk_aversion=0.0,
+    )
+    result = solve_exact_branch_and_bound(instance)
+    assert len({instance.issuer_ids[index] for index in result.selected_indices}) == 2

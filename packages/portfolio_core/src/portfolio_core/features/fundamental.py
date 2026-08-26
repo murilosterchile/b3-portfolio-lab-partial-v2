@@ -91,7 +91,11 @@ def _point_in_time_flows(frame: pl.DataFrame) -> pl.DataFrame:
                         previous_value = value
                         previous_end = end
                 recent_quarters = sorted(quarters.items(), key=lambda item: item[0])[-4:]
-                if len(recent_quarters) == 4:
+                consecutive_ttm = len(recent_quarters) == 4 and all(
+                    60 <= (recent_quarters[index][0] - recent_quarters[index - 1][0]).days <= 120
+                    for index in range(1, 4)
+                )
+                if consecutive_ttm:
                     result[name] = float(sum(value for _, value in recent_quarters))
                     result[f"{name}_basis"] = "TTM"
                 elif fiscal_years:
@@ -200,16 +204,23 @@ def attach_fundamentals_point_in_time(
         monthly_technical, ["ticker", "trade_date"], context="monthly technical features"
     )
     validate_issuer_bridge(bridge)
-    technical = monthly_technical.join(bridge, on="ticker", how="inner").filter(
+    mapped = monthly_technical.join(bridge, on="ticker", how="inner").filter(
         (pl.col("trade_date") >= pl.col("valid_from"))
         & (pl.col("trade_date") <= pl.col("valid_to"))
     )
+    mapped_keys = mapped.select("ticker", "trade_date")
+    unmapped = monthly_technical.join(
+        mapped_keys, on=["ticker", "trade_date"], how="anti"
+    ).join(bridge.head(0), on="ticker", how="left")
+    technical = pl.concat([mapped, unmapped], how="diagonal_relaxed")
     validate_unique_rows(technical, ["ticker", "trade_date"], context="ticker/CD_CVM join")
-    technical = technical.sort(["CD_CVM", "trade_date"])
     fundamentals = fundamentals.with_columns(pl.col("CD_CVM").cast(pl.Utf8)).sort(
         ["CD_CVM", "DT_RECEB"]
     )
-    joined = technical.join_asof(
+    mapped_technical = technical.filter(pl.col("CD_CVM").is_not_null()).sort(
+        ["CD_CVM", "trade_date"]
+    )
+    joined_mapped = mapped_technical.join_asof(
         fundamentals,
         left_on="trade_date",
         right_on="DT_RECEB",
@@ -217,6 +228,10 @@ def attach_fundamentals_point_in_time(
         strategy="backward",
         check_sortedness=False,
     )
+    joined = pl.concat(
+        [joined_mapped, technical.filter(pl.col("CD_CVM").is_null())],
+        how="diagonal_relaxed",
+    ).sort(["trade_date", "ticker"])
     validate_unique_rows(joined, ["ticker", "trade_date"], context="fundamentals point-in-time join")
     validate_fundamentals_point_in_time(joined)
     joined = joined.with_columns(

@@ -57,6 +57,8 @@ def build_portfolio_qkp(
     pair while preserving the exact QKP formulation.
     """
     n = len(candidates)
+    if n == 0:
+        raise DataQualityError("QKP requires at least one candidate")
     if correlation.shape != (n, n):
         raise ValueError("correlation shape does not match candidates")
     validate_correlation_matrix(correlation, context="QKP correlation")
@@ -77,8 +79,10 @@ def build_portfolio_qkp(
     if min_positions < 0 or max_positions < min_positions or max_positions > n:
         raise DataQualityError("invalid QKP cardinality bounds")
     k = max_positions if fixed_k is None else fixed_k
-    if not min_positions <= k <= max_positions:
+    if not min_positions <= k <= max_positions or k < 1:
         raise DataQualityError("fixed_k must be within the cardinality bounds")
+    if not np.isfinite(risk_aversion) or risk_aversion < 0:
+        raise DataQualityError("risk_aversion must be finite and non-negative")
     if turnover_selection_penalty < 0:
         raise DataQualityError("turnover_selection_penalty must be non-negative")
 

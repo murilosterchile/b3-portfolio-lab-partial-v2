@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 
+from portfolio_core.data_quality import filter_labels_known_by
 from portfolio_core.features.fundamental import FUNDAMENTAL_FEATURES
 from portfolio_core.ml.diagnostics import (
     feature_drift_report,
@@ -113,7 +114,9 @@ def main() -> None:
     frame = pl.read_parquet(panel)
     if "target_end_date" not in frame.columns:
         raise SystemExit("Rebuild features first: target_end_date is required for leakage-safe diagnostics")
-    development = frame.filter(pl.col("trade_date").dt.year() <= protocol.development_end_year)
+    development = filter_labels_known_by(
+        frame, knowledge_cutoff=protocol.development_knowledge_cutoff
+    )
     diagnostic = frame.filter(pl.col("trade_date").dt.year() == protocol.diagnostic_year)
     features = DEFAULT_FEATURES + [name for name in FUNDAMENTAL_FEATURES if name in frame.columns]
     out_dir = data_dir / "gold" / "research_diagnostics" / "post_2021_degradation"
@@ -129,7 +132,11 @@ def main() -> None:
     model_config = None
     if tuned_path.exists():
         tuned = json.loads(tuned_path.read_text(encoding="utf-8"))
-        if int(tuned.get("development_end_year", -1)) == protocol.development_end_year:
+        if (
+            int(tuned.get("development_end_year", -1)) == protocol.development_end_year
+            and int(tuned.get("diagnostic_year", -1)) == protocol.diagnostic_year
+            and int(tuned.get("target_horizon_bars", -1)) == protocol.label_horizon_bars
+        ):
             model_config = tuned.get("config")
 
     policy_results: dict[str, object] = {}

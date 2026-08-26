@@ -2,7 +2,22 @@ import zipfile
 from datetime import date
 
 import polars as pl
-from portfolio_core.data.cvm import extract_cvm_statements
+from portfolio_core.data.cvm import extract_cvm_statements, normalize_cvm_currency_scale
+
+
+def test_currency_scale_normalization_preserves_same_scale_ratio() -> None:
+    normalized = normalize_cvm_currency_scale(
+        pl.DataFrame(
+            {
+                "VL_CONTA": [2.0, 8.0, 2_000.0, 8_000.0],
+                "MOEDA": ["REAL"] * 4,
+                "ESCALA_MOEDA": ["UNIDADE", "UNIDADE", "MIL", "MIL"],
+            }
+        )
+    )
+    values = normalized.get_column("VL_CONTA").to_list()
+    assert values[0] / values[1] == values[2] / values[3]
+    assert normalized.get_column("raw_VL_CONTA").to_list() == [2.0, 8.0, 2_000.0, 8_000.0]
 
 
 def test_extract_cvm_statements_attaches_document_received_date(tmp_path) -> None:

@@ -200,9 +200,8 @@ def run_monthly_topk_backtest_detailed(
 
     signal_tickers = signal_rows["ticker"].unique().to_list()
     used_prices = prices.filter(pl.col("ticker").is_in(signal_tickers))
-    missing_prices = sorted(set(signal_tickers) - set(used_prices["ticker"].unique().to_list()))
-    if missing_prices:
-        raise DataQualityError(f"signals have tickers without prices: {missing_prices[:20]}")
+    if used_prices.is_empty():
+        raise DataQualityError("signals have no matching price history")
     validate_prices(used_prices, context="backtest prices")
 
     price_column = "adjusted_close" if "adjusted_close" in used_prices.columns else "close"
@@ -221,16 +220,22 @@ def run_monthly_topk_backtest_detailed(
     close_frame = (
         price_long.select("trade_date", "ticker", price_column)
         .pivot(index="trade_date", on="ticker", values=price_column)
-        .sort("trade_date")
     )
+    close_frame = prices.select("trade_date").unique().join(
+        close_frame, on="trade_date", how="left", validate="1:1"
+    ).sort("trade_date")
     dates = close_frame["trade_date"].to_list()
     tickers = [column for column in close_frame.columns if column != "trade_date"]
     observed = close_frame.select(pl.col(tickers).is_not_null()).to_numpy()
     close = close_frame.select(tickers).fill_null(strategy="forward").to_numpy()
     if has_distribution_number:
-        distribution = (
+        distribution_frame = (
             price_long.select("trade_date", "ticker", "distribution_number")
             .pivot(index="trade_date", on="ticker", values="distribution_number")
+        )
+        distribution = (
+            prices.select("trade_date").unique()
+            .join(distribution_frame, on="trade_date", how="left", validate="1:1")
             .sort("trade_date")
             .select(tickers)
             .fill_null(strategy="forward")
@@ -248,6 +253,7 @@ def run_monthly_topk_backtest_detailed(
     ticker_to_col = {ticker: index for index, ticker in enumerate(tickers)}
     date_to_index = {value: index for index, value in enumerate(dates)}
     rebalance_lookup: dict[date, np.ndarray] = {}
+    rebalance_signal_dates: dict[date, date] = {}
     selection_rows: list[dict[str, object]] = []
     rejected_rows: list[dict[str, object]] = []
     position_counts: list[int] = []
@@ -263,6 +269,8 @@ def run_monthly_topk_backtest_detailed(
         ranked_tickers: list[str] = []
         seen_issuers: set[str] = set()
         for row in cross.sort(score_column, descending=True).iter_rows(named=True):
+            if len(ranked_tickers) >= config.top_k + config.selection_buffer:
+                break
             ticker = str(row["ticker"])
             if ticker not in ticker_to_col:
                 rejected_rows.append(
@@ -302,6 +310,7 @@ def run_monthly_topk_backtest_detailed(
                     }
                 )
         rebalance_lookup[execution_date] = target
+        rebalance_signal_dates[execution_date] = signal_date
         position_counts.append(len(selected))
 
     if not rebalance_lookup:
@@ -325,7 +334,7 @@ def run_monthly_topk_backtest_detailed(
         active = weights > 0
         asset_returns = daily_ret[index - 1].copy()
         stale_age = np.where(observed[index], 0, stale_age + 1)
-        conservatively_delisted = active & (stale_age > config.max_stale_valuation_sessions)
+        conservatively_delisted = active & (stale_age == config.max_stale_valuation_sessions + 1)
         asset_returns[conservatively_delisted] = -0.999
         unadjusted_action = corporate_action[index - 1] & (
             (price_column == "close") | (np.abs(asset_returns) > max_abs_return)
@@ -368,7 +377,24 @@ def run_monthly_topk_backtest_detailed(
         # Execute only after reaching the execution close. The interval from the
         # signal close to this close was earned by the old portfolio/cash.
         if current_date in rebalance_lookup:
-            target = rebalance_lookup[current_date]
+            target = rebalance_lookup[current_date].copy()
+            blocked = active & ~observed[index]
+            if np.any(blocked):
+                target[blocked] = weights[blocked]
+                residual = max(0.0, 1.0 - float(target[blocked].sum()))
+                tradable_target = ~blocked
+                requested = float(target[tradable_target].sum())
+                if requested > residual and requested > 0:
+                    target[tradable_target] *= residual / requested
+                for column in np.flatnonzero(blocked):
+                    rejected_rows.append(
+                        {
+                            "signal_date": rebalance_signal_dates[current_date],
+                            "execution_date": current_date,
+                            "ticker": tickers[column],
+                            "reason": "no_observed_quote_for_exit",
+                        }
+                    )
             target_cash = max(0.0, 1.0 - float(target.sum()))
             turnover = _one_way_turnover(weights, target, current_cash=cash_weight, target_cash=target_cash)
             cost_fraction = turnover * config.transaction_cost_bps / 10_000.0

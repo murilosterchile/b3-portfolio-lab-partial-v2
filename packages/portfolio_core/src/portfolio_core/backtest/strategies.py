@@ -5,7 +5,7 @@ import polars as pl
 
 from portfolio_core.optimizer import Candidate, build_portfolio_qkp, solve_portfolio
 from portfolio_core.quant import hierarchical_risk_parity, inverse_volatility, minimum_variance
-from portfolio_core.quant.risk import covariance_to_correlation, ledoit_wolf_covariance
+from portfolio_core.quant.risk import covariance_to_correlation
 
 
 def point_in_time_covariance(
@@ -27,10 +27,29 @@ def point_in_time_covariance(
     values = wide.select(available).tail(lookback_observations + 1).to_numpy()
     with np.errstate(divide="ignore", invalid="ignore"):
         returns = values[1:] / values[:-1] - 1.0
-    returns = returns[np.all(np.isfinite(returns), axis=1)]
-    if returns.shape[0] < min_return_observations:
+    counts = np.isfinite(returns).sum(axis=0)
+    keep = np.flatnonzero(counts >= min_return_observations)
+    if len(keep) < 2:
         return None
-    return available, ledoit_wolf_covariance(returns) * 252.0
+    returns = returns[:, keep]
+    available = [available[index] for index in keep]
+    n = len(available)
+    covariance = np.zeros((n, n), dtype=float)
+    for i in range(n):
+        for j in range(i, n):
+            common = np.isfinite(returns[:, i]) & np.isfinite(returns[:, j])
+            if int(common.sum()) < min_return_observations:
+                return None
+            value = float(np.cov(returns[common, i], returns[common, j], ddof=1)[0, 1])
+            covariance[i, j] = value
+            covariance[j, i] = value
+    # Pairwise missingness can make the sample matrix indefinite. Shrink the
+    # observed off-diagonal estimates and clip only numerical negative modes.
+    diagonal = np.diag(np.diag(covariance))
+    covariance = 0.8 * covariance + 0.2 * diagonal
+    eigenvalues, eigenvectors = np.linalg.eigh(covariance)
+    covariance = (eigenvectors * np.maximum(eigenvalues, 1e-12)) @ eigenvectors.T
+    return available, covariance * 252.0
 
 
 def build_monthly_qkp_weights(

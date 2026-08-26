@@ -14,7 +14,7 @@ from portfolio_core.backtest import (
 )
 from portfolio_core.optimizer import Candidate, build_portfolio_qkp, solve_portfolio
 from portfolio_core.quant import hierarchical_risk_parity
-from portfolio_core.quant.risk import covariance_to_correlation, ledoit_wolf_covariance
+from portfolio_core.quant.risk import covariance_to_correlation
 
 
 def _pit_covariance(

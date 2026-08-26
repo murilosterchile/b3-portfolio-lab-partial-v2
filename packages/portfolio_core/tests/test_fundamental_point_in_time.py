@@ -44,6 +44,28 @@ def test_statement_received_later_is_not_available_early() -> None:
     assert joined.filter(pl.col("trade_date") == date(2024, 6, 1))["net_margin"].item() == 0.2
 
 
+def test_unmapped_ticker_keeps_technical_features_without_fundamentals() -> None:
+    technical = pl.DataFrame(
+        {
+            "ticker": ["TEST3", "OLD3"],
+            "trade_date": [date(2024, 6, 1), date(2024, 6, 1)],
+            "return_21d": [0.1, 0.2],
+        }
+    )
+    fundamentals = pl.DataFrame(
+        {
+            "CD_CVM": ["123"],
+            "DT_REFER": [date(2024, 3, 31)],
+            "DT_RECEB": [date(2024, 5, 10)],
+            "net_margin": [0.2],
+        }
+    )
+    joined = attach_fundamentals_point_in_time(technical, fundamentals, _bridge())
+    old = joined.filter(pl.col("ticker") == "OLD3")
+    assert old["return_21d"].item() == 0.2
+    assert old["net_margin"].item() is None
+
+
 def test_same_receipt_date_selects_latest_reference_deterministically() -> None:
     statements = pl.DataFrame(
         {
@@ -92,6 +114,31 @@ def test_negative_equity_is_flagged_and_never_made_positive() -> None:
     assert snapshot["negative_equity"].item()
     assert snapshot["roe_proxy"].item() is None
     assert snapshot["log_equity"].item() is None
+
+
+def test_cumulative_flows_are_converted_to_point_in_time_ttm() -> None:
+    period_ends = [
+        date(2024, 3, 31),
+        date(2024, 6, 30),
+        date(2024, 9, 30),
+        date(2024, 12, 31),
+    ]
+    receipts = [date(2024, 5, 10), date(2024, 8, 10), date(2024, 11, 10), date(2025, 3, 10)]
+    statements = pl.DataFrame(
+        {
+            "CD_CVM": [123] * 8,
+            "DT_REFER": [value for value in period_ends for _ in range(2)],
+            "DT_RECEB": [value for value in receipts for _ in range(2)],
+            "DT_INI_EXERC": [date(2024, 1, 1)] * 8,
+            "DT_FIM_EXERC": [value for value in period_ends for _ in range(2)],
+            "CD_CONTA": [value for _ in period_ends for value in ("1", "3.01")],
+            "VL_CONTA": [value for cumulative in (100.0, 220.0, 360.0, 500.0) for value in (1_000.0, cumulative)],
+        }
+    )
+    snapshots = build_company_fundamental_snapshots(statements)
+    latest = snapshots.sort("DT_RECEB").tail(1)
+    assert latest["revenue"].item() == 500.0
+    assert latest["revenue_basis"].item() == "TTM"
 
 
 def test_same_receipt_and_reference_selects_highest_cvm_version() -> None:

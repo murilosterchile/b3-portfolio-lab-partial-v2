@@ -37,12 +37,15 @@ def normalize_cvm_currency_scale(frame: pl.DataFrame) -> pl.DataFrame:
         .alias("ESCALA_MOEDA"),
         pl.col("VL_CONTA").cast(pl.Float64, strict=False).alias("raw_VL_CONTA"),
     )
-    unknown_currency = normalized.filter(~pl.col("MOEDA").is_in(sorted(_BRL_CURRENCIES)))
+    unknown_currency = normalized.filter(
+        pl.col("MOEDA").is_null() | ~pl.col("MOEDA").is_in(sorted(_BRL_CURRENCIES))
+    )
     if not unknown_currency.is_empty():
         values = unknown_currency.get_column("MOEDA").unique().sort().to_list()
         raise ValueError(f"Unsupported CVM currency; expected BRL: {values}")
     unknown_scale = normalized.filter(
-        ~pl.col("ESCALA_MOEDA").is_in(sorted(_CVM_SCALE_MULTIPLIERS))
+        pl.col("ESCALA_MOEDA").is_null()
+        | ~pl.col("ESCALA_MOEDA").is_in(sorted(_CVM_SCALE_MULTIPLIERS))
     )
     if not unknown_scale.is_empty():
         values = unknown_scale.get_column("ESCALA_MOEDA").unique().sort().to_list()

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import polars as pl
 
+from portfolio_core.data_quality import filter_labels_known_by
 from portfolio_core.features.fundamental import FUNDAMENTAL_FEATURES
 from portfolio_core.ml.protocol import ResearchProtocol
 from portfolio_core.ml.walk_forward import (
@@ -32,7 +33,9 @@ def main() -> None:
     if "target_end_date" not in frame.columns:
         raise SystemExit("Feature panel predates target_end_date. Rebuild features before training.")
     feature_names = DEFAULT_FEATURES + [name for name in FUNDAMENTAL_FEATURES if name in frame.columns]
-    development = frame.filter(pl.col("trade_date").dt.year() <= protocol.development_end_year)
+    development = filter_labels_known_by(
+        frame, knowledge_cutoff=protocol.development_knowledge_cutoff
+    )
     print(f"feature_panel={feature_path} features={len(feature_names)}")
     print(f"development_end_year={protocol.development_end_year}")
     print(protocol.warning)
@@ -45,6 +48,7 @@ def main() -> None:
         if (
             int(tuning_metadata.get("development_end_year", -1)) == protocol.development_end_year
             and int(tuning_metadata.get("diagnostic_year", -1)) == protocol.diagnostic_year
+            and int(tuning_metadata.get("target_horizon_bars", -1)) == protocol.label_horizon_bars
         ):
             model_config = tuning_metadata.get("config")
             print(f"using_tuned_config={tuned_path}")

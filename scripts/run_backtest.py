@@ -22,7 +22,7 @@ from portfolio_core.data.universe import (
     apply_point_in_time_universe,
     build_point_in_time_universe,
 )
-from portfolio_core.data_quality import DataQualityError, invalid_price_rows
+from portfolio_core.data_quality import DataQualityError, filter_labels_known_by, invalid_price_rows
 from portfolio_core.features.fundamental import FUNDAMENTAL_FEATURES
 from portfolio_core.ml.diagnostics import yearly_topk_report
 from portfolio_core.ml.protocol import ResearchProtocol
@@ -327,7 +327,11 @@ def main() -> None:
     model_config = None
     if tuned_path.exists():
         metadata = json.loads(tuned_path.read_text(encoding="utf-8"))
-        if int(metadata.get("development_end_year", -1)) == protocol.development_end_year:
+        if (
+            int(metadata.get("development_end_year", -1)) == protocol.development_end_year
+            and int(metadata.get("diagnostic_year", -1)) == protocol.diagnostic_year
+            and int(metadata.get("target_horizon_bars", -1)) == protocol.label_horizon_bars
+        ):
             model_config = metadata.get("config")
 
     if args.use_trained_model:
@@ -370,7 +374,9 @@ def main() -> None:
         print(f"diagnostic_comparison={out}")
         return
 
-    development = features.filter(pl.col("trade_date").dt.year() <= protocol.development_end_year)
+    development = filter_labels_known_by(
+        features, knowledge_cutoff=protocol.development_knowledge_cutoff
+    )
     years = sorted(set(development["trade_date"].dt.year().to_list()))
     prediction_frames: list[pl.DataFrame] = []
     fold_metrics: dict[int, dict[str, float]] = {}

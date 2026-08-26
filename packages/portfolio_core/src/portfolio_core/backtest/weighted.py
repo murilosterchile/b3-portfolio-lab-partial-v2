@@ -7,7 +7,6 @@ import polars as pl
 
 from portfolio_core.data_quality import DataQualityError, validate_prices
 from portfolio_core.quant import hierarchical_risk_parity, inverse_volatility, minimum_variance
-from portfolio_core.quant.risk import ledoit_wolf_covariance
 
 from .engine import BacktestSummary, _metrics, _one_way_turnover
 
@@ -50,30 +49,46 @@ def build_monthly_risk_benchmark_weights(
     for signal_date in sorted(set(features["trade_date"].to_list())):
         cross = features.filter(pl.col("trade_date") == signal_date).sort(
             "rank_log_volume_21d", descending=True
-        ).head(candidate_count)
+        )
+        if "CD_CVM" in cross.columns:
+            cross = cross.with_columns(pl.col("CD_CVM").cast(pl.Utf8).alias("__issuer"))
+        elif "issuer_identifier" in cross.columns:
+            cross = cross.with_columns(pl.col("issuer_identifier").cast(pl.Utf8).alias("__issuer"))
+        else:
+            cross = cross.with_columns(pl.col("ticker").str.slice(0, 4).alias("__issuer"))
+        cross = cross.unique(subset="__issuer", keep="first", maintain_order=True).head(
+            candidate_count
+        )
         tickers = cross["ticker"].to_list()
         if len(tickers) < 2:
             continue
-        history = prices.filter(
-            (pl.col("trade_date") <= pl.lit(signal_date)) & pl.col("ticker").is_in(tickers)
-        ).select("trade_date", "ticker", "adjusted_close")
-        wide = history.pivot(index="trade_date", on="ticker", values="adjusted_close").sort("trade_date")
-        available = [ticker for ticker in tickers if ticker in wide.columns]
-        if len(available) < 2:
-            continue
-        values = wide.select(available).tail(lookback_observations + 1).to_numpy()
-        if values.shape[0] < 80:
-            continue
-        with np.errstate(divide="ignore", invalid="ignore"):
-            returns = values[1:] / values[:-1] - 1.0
-        returns = returns[np.all(np.isfinite(returns), axis=1)]
-        if returns.shape[0] < 60:
-            continue
-        covariance = (
-            ledoit_wolf_covariance(returns)
-            if estimator == "ledoit_wolf"
-            else np.cov(returns, rowvar=False, ddof=1)
-        )
+        if estimator == "ledoit_wolf":
+            from .strategies import point_in_time_covariance
+
+            covariance_result = point_in_time_covariance(
+                prices,
+                tickers,
+                signal_date,
+                lookback_observations=lookback_observations,
+            )
+            if covariance_result is None:
+                continue
+            available, covariance = covariance_result
+        else:
+            history = prices.filter(
+                (pl.col("trade_date") <= pl.lit(signal_date)) & pl.col("ticker").is_in(tickers)
+            ).select("trade_date", "ticker", "adjusted_close")
+            wide = history.pivot(index="trade_date", on="ticker", values="adjusted_close").sort("trade_date")
+            available = [ticker for ticker in tickers if ticker in wide.columns]
+            if len(available) < 2:
+                continue
+            values = wide.select(available).tail(lookback_observations + 1).to_numpy()
+            with np.errstate(divide="ignore", invalid="ignore"):
+                returns = values[1:] / values[:-1] - 1.0
+            returns = returns[np.all(np.isfinite(returns), axis=1)]
+            if returns.shape[0] < 60:
+                continue
+            covariance = np.cov(returns, rowvar=False, ddof=1) * 252.0
         if allocation == "minvar":
             weights = minimum_variance(covariance, max_weight=min(0.20, 1.0))
         elif allocation == "inverse_vol":
@@ -131,9 +146,14 @@ def run_monthly_weighted_backtest_detailed(
 
     tickers = target_weights["ticker"].unique().to_list()
     used = prices.filter(pl.col("ticker").is_in(tickers))
+    if used.is_empty():
+        raise DataQualityError("target weights have no matching price history")
     validate_prices(used, context="weighted backtest prices")
     wide = used.select("trade_date", "ticker", "adjusted_close").pivot(
         index="trade_date", on="ticker", values="adjusted_close"
+    )
+    wide = prices.select("trade_date").unique().join(
+        wide, on="trade_date", how="left", validate="1:1"
     ).sort("trade_date")
     dates = wide["trade_date"].to_list()
     asset_names = [name for name in wide.columns if name != "trade_date"]
@@ -142,6 +162,7 @@ def run_monthly_weighted_backtest_detailed(
     date_to_index = {value: i for i, value in enumerate(dates)}
     ticker_to_index = {ticker: i for i, ticker in enumerate(asset_names)}
     schedule: dict[object, np.ndarray] = {}
+    schedule_signal_dates: dict[object, object] = {}
     positions: list[int] = []
     rejected_rows: list[dict[str, object]] = []
     for signal_date in sorted(set(target_weights["trade_date"].to_list())):
@@ -166,7 +187,18 @@ def run_monthly_weighted_backtest_detailed(
                             "reason": "no_observed_execution_quote",
                         }
                     )
+            else:
+                rejected_rows.append(
+                    {
+                        "signal_date": signal_date,
+                        "execution_date": execution_date,
+                        "ticker": row["ticker"],
+                        "target_weight": float(row["target_weight"]),
+                        "reason": "missing_price_history",
+                    }
+                )
         schedule[execution_date] = target
+        schedule_signal_dates[execution_date] = signal_date
         positions.append(int(np.sum(target > 0)))
     if not schedule:
         raise DataQualityError("no executable weighted rebalance dates")
@@ -188,7 +220,7 @@ def run_monthly_weighted_backtest_detailed(
         active = weights > 0
         stale_age = np.where(observed[i], 0, stale_age + 1)
         asset_return = returns[i - 1].copy()
-        asset_return[active & (stale_age > config.max_stale_valuation_sessions)] = -0.999
+        asset_return[active & (stale_age == config.max_stale_valuation_sessions + 1)] = -0.999
         if np.any(active & ~np.isfinite(asset_return)):
             raise DataQualityError("held asset has non-finite adjusted return")
         day_return = float(weights[active] @ asset_return[active]) if np.any(active) else 0.0
@@ -199,7 +231,25 @@ def run_monthly_weighted_backtest_detailed(
         weights = drift
         cash /= growth
         if current_date in schedule:
-            target = schedule[current_date]
+            target = schedule[current_date].copy()
+            blocked = active & ~observed[i]
+            if np.any(blocked):
+                target[blocked] = weights[blocked]
+                residual = max(0.0, 1.0 - float(target[blocked].sum()))
+                tradable_target = ~blocked
+                requested = float(target[tradable_target].sum())
+                if requested > residual and requested > 0:
+                    target[tradable_target] *= residual / requested
+                for column in np.flatnonzero(blocked):
+                    rejected_rows.append(
+                        {
+                            "signal_date": schedule_signal_dates[current_date],
+                            "execution_date": current_date,
+                            "ticker": asset_names[column],
+                            "target_weight": float(schedule[current_date][column]),
+                            "reason": "no_observed_quote_for_exit",
+                        }
+                    )
             target_cash = max(0.0, 1.0 - float(target.sum()))
             turnover = _one_way_turnover(weights, target, current_cash=cash, target_cash=target_cash)
             turnover_total += turnover

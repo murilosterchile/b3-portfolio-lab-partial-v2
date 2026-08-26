@@ -3,7 +3,7 @@ COMPOSE ?= docker compose
 PYTHON ?= python3
 RUN_USER ?= $(shell id -u):$(shell id -g)
 
-.PHONY: help env up down logs test lint demo ingest-b3 ingest-corporate-actions ingest-cvm ingest-cvm-registry ingest-macro refresh-research-data generate-issuer-bridge build-fundamentals tune train backtest diagnose-model-degradation build-regime-candidates risk-benchmarks qkp-ablation bootstrap-performance decompose-performance native clean
+.PHONY: help env up down logs test lint demo ingest-b3 ingest-corporate-actions ingest-cvm ingest-cvm-registry ingest-macro refresh-research-data generate-issuer-bridge build-fundamentals tune train backtest diagnose-model-degradation build-regime-candidates horizon-challengers risk-benchmarks qkp-ablation bootstrap-performance decompose-performance native clean
 
 help:
 	@printf '%s\n' \
@@ -19,6 +19,7 @@ help:
 	  'make refresh-research-data START_YEAR=2011 END_YEAR=2026 - rebuild leakage-safe official-data panel' \
 	  'make diagnose-model-degradation        - development-only drift/IC/Top-K/window/target diagnostics' \
 	  'make build-regime-candidates           - build PIT regime candidates; does not enable them in production' \
+	  'make horizon-challengers               - build development-only 21/42/63-bar target panels' \
 	  'make risk-benchmarks                    - sample vs Ledoit-Wolf minvar/inverse-vol/HRP on <=2025' \
 	  'make tune TRIALS=25                    - purged time-aware tuning; 2026 never enters selection' \
 	  'make train                            - train final artifact with labels known by 2025-12-31' \
@@ -83,6 +84,9 @@ diagnose-model-degradation: env
 
 build-regime-candidates: env
 	$(COMPOSE) run --rm --build --user $(RUN_USER) api python /workspace/scripts/build_regime_candidates.py
+
+horizon-challengers: env
+	$(COMPOSE) run --rm --build --user $(RUN_USER) api python /workspace/scripts/build_horizon_challengers.py
 
 risk-benchmarks: env
 	$(COMPOSE) run --rm --build --user $(RUN_USER) api python /workspace/scripts/run_risk_benchmarks.py

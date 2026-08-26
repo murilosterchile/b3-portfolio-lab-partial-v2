@@ -10,7 +10,7 @@ from sklearn.linear_model import Ridge
 
 
 class Regressor(Protocol):
-    def fit(self, x: np.ndarray, y: np.ndarray) -> object: ...
+    def fit(self, x: np.ndarray, y: np.ndarray, **kwargs: object) -> object: ...
     def predict(self, x: np.ndarray) -> np.ndarray: ...
 
 
@@ -31,6 +31,10 @@ class EnsembleRegressor:
         ridge_alpha: float = 10.0,
         weights: tuple[float, float, float] = (0.45, 0.45, 0.10),
     ) -> "EnsembleRegressor":
+        raw_weights = np.asarray(weights, dtype=float)
+        if raw_weights.shape != (3,) or not np.all(np.isfinite(raw_weights)) or raw_weights.sum() <= 0:
+            raise ValueError("ensemble weights must be three finite non-negative values with positive sum")
+        normalized = tuple((raw_weights / raw_weights.sum()).tolist())
         lightgbm_params = {
             "objective": "huber",
             "n_estimators": 600,
@@ -61,13 +65,20 @@ class EnsembleRegressor:
             lightgbm=LGBMRegressor(**lightgbm_params),
             catboost=CatBoostRegressor(**catboost_params),
             ridge=Ridge(alpha=ridge_alpha),
-            weights=weights,
+            weights=normalized,
         )
 
-    def fit(self, x: np.ndarray, y: np.ndarray) -> "EnsembleRegressor":
-        self.lightgbm.fit(x, y)
-        self.catboost.fit(x, y)
-        self.ridge.fit(x, y)
+    def fit(
+        self,
+        x: np.ndarray,
+        y: np.ndarray,
+        *,
+        sample_weight: np.ndarray | None = None,
+    ) -> "EnsembleRegressor":
+        kwargs = {} if sample_weight is None else {"sample_weight": sample_weight}
+        self.lightgbm.fit(x, y, **kwargs)
+        self.catboost.fit(x, y, **kwargs)
+        self.ridge.fit(x, y, **kwargs)
         return self
 
     def predict_components(self, x: np.ndarray) -> np.ndarray:

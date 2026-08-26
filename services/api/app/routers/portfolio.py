@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date
+
 import numpy as np
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import desc, func, select
@@ -12,9 +14,9 @@ from ..config import get_settings
 from ..db import get_db
 from ..models import AssetSnapshot
 from ..rate_limit import optimizer_rate_limit
+from ..research import historical_correlation
 from ..schemas import OptimizeRequest, OptimizeResponse, PositionOut
 from ..security import require_optimizer_auth
-from ..research import historical_correlation
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
@@ -61,23 +63,31 @@ def optimize(payload: OptimizeRequest, db: Session = Depends(get_db)) -> Optimiz
     if len(rows) < payload.min_positions:
         raise HTTPException(status_code=409, detail="Insufficient candidate universe")
 
-    corr = historical_correlation(tickers=[r.ticker for r in rows], data_dir=get_settings().data_dir)
-    correlation_source = "B3 history + Ledoit-Wolf"
+    try:
+        covariance_as_of = date.fromisoformat(str(latest)[:10])
+    except ValueError as exc:
+        raise HTTPException(status_code=500, detail="Invalid model snapshot as_of date") from exc
+    corr = historical_correlation(
+        tickers=[row.ticker for row in rows],
+        data_dir=get_settings().data_dir,
+        as_of=covariance_as_of,
+    )
+    correlation_source = f"B3 history through {covariance_as_of} + Ledoit-Wolf"
     if corr is None:
         corr = _correlation(rows)
         correlation_source = "synthetic demo fallback"
     candidates = [
         Candidate(
-            ticker=r.ticker,
-            price=r.price,
-            predicted_excess_return=r.predicted_excess_return,
-            uncertainty=r.prediction_uncertainty,
-            sector=r.sector,
-            quant_score=r.quant_score,
-            liquidity_score=r.liquidity_score,
-            volatility_annual=r.volatility_annual,
+            ticker=row.ticker,
+            price=row.price,
+            predicted_excess_return=row.predicted_excess_return,
+            uncertainty=row.prediction_uncertainty,
+            sector=row.sector,
+            quant_score=row.quant_score,
+            liquidity_score=row.liquidity_score,
+            volatility_annual=row.volatility_annual,
         )
-        for r in rows
+        for row in rows
     ]
     instance = build_portfolio_qkp(
         candidates,
@@ -96,7 +106,7 @@ def optimize(payload: OptimizeRequest, db: Session = Depends(get_db)) -> Optimiz
 
     selected_rows = [rows[i] for i in result.selected_indices]
     selected_corr = corr[np.ix_(result.selected_indices, result.selected_indices)]
-    vols = np.asarray([r.volatility_annual for r in selected_rows])
+    vols = np.asarray([row.volatility_annual for row in selected_rows])
     cov = selected_corr * np.outer(vols, vols)
     try:
         if payload.allocation == "minvar":
@@ -108,17 +118,21 @@ def optimize(payload: OptimizeRequest, db: Session = Depends(get_db)) -> Optimiz
     except Exception:
         weights = inverse_volatility(cov)
 
-    mu = np.asarray([r.predicted_excess_return for r in selected_rows])
+    mu = np.asarray([row.predicted_excess_return for row in selected_rows])
     expected = float(weights @ mu)
     vol = float(np.sqrt(max(weights @ cov @ weights, 0.0)))
     positions = [
         PositionOut(
-            ticker=r.ticker, company=r.company, sector=r.sector, weight=float(w),
-            amount=float(w * payload.budget), price=r.price,
-            expected_excess_return=r.predicted_excess_return,
-            volatility_annual=r.volatility_annual,
+            ticker=row.ticker,
+            company=row.company,
+            sector=row.sector,
+            weight=float(weight),
+            amount=float(weight * payload.budget),
+            price=row.price,
+            expected_excess_return=row.predicted_excess_return,
+            volatility_annual=row.volatility_annual,
         )
-        for r, w in zip(selected_rows, weights, strict=True)
+        for row, weight in zip(selected_rows, weights, strict=True)
     ]
     return OptimizeResponse(
         status=result.status,
@@ -131,6 +145,7 @@ def optimize(payload: OptimizeRequest, db: Session = Depends(get_db)) -> Optimiz
         notes=[
             "QKP selection is solved exactly; allocation is a separate risk-allocation stage.",
             f"Correlation source: {correlation_source}.",
+            "Covariance/correlation never use prices after the model snapshot date.",
             "This prototype is research software, not an investment recommendation.",
         ],
     )

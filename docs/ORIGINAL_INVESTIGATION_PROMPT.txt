@@ -1,0 +1,1244 @@
+Quero que você faça uma investigação completa da degradação recente do modelo quantitativo do projeto B3 Portfolio Lab.
+
+O problema está bem definido e já temos evidências empíricas importantes.
+
+==================================================
+CONTEXTO DO PROJETO
+==================================================
+
+O sistema usa:
+
+- dados históricos oficiais da B3;
+- preços ajustados por corporate actions, em uma série analítica total-return;
+- fundamentos CVM point-in-time;
+- features técnicas;
+- features fundamentalistas;
+- ranks cross-sectionais;
+- ML para geração de sinal;
+- fatores quantitativos;
+- QKP para seleção combinatória;
+- backtest walk-forward;
+- modelo final treinado e salvo para inferência.
+
+O painel atual possui:
+
+Rows                     1,018,057
+Tickers                  629
+Date range               2011-01-03 -> 2026-08-25
+Features                 40
+
+Qualidade:
+
+Invalid source prices    0
+Duplicate ticker/date    0
+Invalid adjusted prices  0
+
+Cobertura mediana:
+
+technical median         94.53%
+fundamental median       87.49%
+
+O pipeline está atualmente muito mais rigoroso que versões anteriores, com:
+
+- corporate actions;
+- prices adjusted total-return;
+- CVM point-in-time;
+- tratamento de eventos corporativos;
+- histórico de tickers;
+- prevenção de preços inválidos;
+- preprocessing fit-only;
+- walk-forward;
+- transaction costs;
+- turnover;
+- backtest mensal.
+
+==================================================
+RESULTADO WALK-FORWARD HISTÓRICO
+==================================================
+
+O backtest walk-forward produziu:
+
+fold=2014 validation_rank_ic= 0.0795 top_minus_bottom=-1.5252
+fold=2015 validation_rank_ic= 0.0818 top_minus_bottom= 1.4692
+fold=2016 validation_rank_ic= 0.1562 top_minus_bottom= 1.1634
+fold=2017 validation_rank_ic= 0.1385 top_minus_bottom= 1.7379
+fold=2018 validation_rank_ic= 0.0956 top_minus_bottom= 0.6742
+fold=2019 validation_rank_ic= 0.1430 top_minus_bottom= 0.7049
+fold=2020 validation_rank_ic= 0.1350 top_minus_bottom= 0.3860
+fold=2021 validation_rank_ic= 0.1235 top_minus_bottom= 0.3506
+
+fold=2022 validation_rank_ic=-0.0872 top_minus_bottom= 0.2143
+fold=2023 validation_rank_ic=-0.0718 top_minus_bottom= 0.0492
+fold=2024 validation_rank_ic=-0.0239 top_minus_bottom= 0.6155
+fold=2025 validation_rank_ic= 0.0151 top_minus_bottom= 0.4663
+fold=2026 validation_rank_ic=-0.1044 top_minus_bottom= 0.2453
+
+Performance agregada:
+
+ml_top10
+CAGR       37.82%
+Sharpe      0.894
+MDD       -40.87%
+turnover    6.58x/year
+
+momentum_top10
+CAGR        2.45%
+Sharpe      0.224
+MDD       -75.86%
+turnover    3.19x/year
+
+multifactor_top10
+CAGR       10.00%
+Sharpe      0.600
+MDD       -44.90%
+turnover    3.52x/year
+
+research_v2
+CAGR       21.57%
+Sharpe      0.903
+MDD       -34.70%
+turnover    7.76x/year
+
+accepted=False
+
+==================================================
+RESULTADO DO MODELO FINAL TREINADO
+==================================================
+
+Foi treinado um artefato final:
+
+/workspace/models/signal_model.joblib
+
+trained_until=2025-12-30
+
+Depois foi executado:
+
+make backtest USE_TRAINED_MODEL=1
+
+Resultado:
+
+ml_top10
+CAGR      -30.39%
+Sharpe     -1.584
+MDD       -22.65%
+turnover    7.02x/year
+
+momentum_top10
+CAGR      -34.91%
+Sharpe     -2.007
+MDD       -30.49%
+turnover    4.74x/year
+
+multifactor_top10
+CAGR       -1.32%
+Sharpe     -0.014
+MDD       -15.41%
+turnover    4.98x/year
+
+research_v2
+CAGR       -0.71%
+Sharpe      0.020
+MDD       -10.91%
+turnover    7.66x/year
+
+accepted=False
+
+O modelo final foi treinado somente até 2025-12-30.
+
+Portanto, 2026 funciona como um teste pseudo-live/final muito importante.
+
+==================================================
+PROBLEMA CENTRAL
+==================================================
+
+Existe uma quebra clara entre dois regimes.
+
+A média aproximada do Rank IC entre 2014 e 2021 é:
+
+IC ≈ +0.119
+
+A média entre 2022 e 2026 é aproximadamente:
+
+IC ≈ -0.054
+
+Ou seja:
+
+2014–2021:
+modelo consistentemente preditivo
+
+2022–2026:
+modelo globalmente anti-correlacionado ou praticamente neutro
+
+Ao mesmo tempo, top_minus_bottom permanece positivo na maior parte do período recente.
+
+Isso sugere uma hipótese importante:
+
+o modelo pode ter perdido capacidade de ordenar todo o cross-section, mas ainda pode preservar alguma qualidade na cauda superior.
+
+É necessário comprovar ou refutar isso.
+
+==================================================
+REGRA FUNDAMENTAL: NÃO OVERFITAR 2026
+==================================================
+
+2026 já foi observado.
+
+Portanto NÃO use 2026 para:
+
+- escolher hiperparâmetros;
+- escolher janela de treinamento;
+- escolher features;
+- escolher thresholds;
+- escolher pesos;
+- escolher quantidade de ações;
+- escolher estratégia;
+- escolher custos;
+- escolher gate de aceitação.
+
+2026 agora deve ser tratado SOMENTE como diagnóstico.
+
+Qualquer melhoria deve ser desenvolvida usando pseudo-holdouts anteriores.
+
+Por exemplo:
+
+train <= 2018 -> validate 2019
+train <= 2019 -> validate 2020
+train <= 2020 -> validate 2021
+train <= 2021 -> validate 2022
+train <= 2022 -> validate 2023
+train <= 2023 -> validate 2024
+train <= 2024 -> validate 2025
+
+A nova arquitetura deve ser escolhida somente com esses folds.
+
+Somente depois reportar como ela teria se comportado em 2026.
+
+Documente explicitamente que 2026 deixou de ser um holdout totalmente intocado após esta análise.
+
+==================================================
+PARTE 1 — AUDITORIA DE CORRETUDE
+==================================================
+
+Antes de tentar melhorar o modelo, confirme que não existe bug.
+
+Audite completamente:
+
+1. labels;
+2. timestamps;
+3. availability dates;
+4. price adjustment;
+5. corporate actions;
+6. CVM point-in-time;
+7. feature preprocessing;
+8. imputation;
+9. scaling;
+10. model fitting;
+11. prediction dates;
+12. execution dates;
+13. portfolio returns;
+14. transaction costs;
+15. universe construction.
+
+Confirme especialmente:
+
+Feature date <= prediction date
+
+Fundamental available_at <= prediction date
+
+Model fit date < validation/test date
+
+Execution price occurs AFTER signal availability
+
+Não pode existir:
+
+look-ahead bias
+target leakage
+survivorship bias
+same-close execution leakage
+global scaler fit
+global imputer fit
+future corporate action leakage
+
+Produza testes automatizados para essas invariantes.
+
+==================================================
+PARTE 2 — ENTENDER O REGIME 2014–2021 VS 2022–2026
+==================================================
+
+Divida o histórico em:
+
+REGIME A:
+2014–2021
+
+REGIME B:
+2022–2025
+
+2026:
+diagnóstico separado
+
+Para cada feature, calcule:
+
+mean
+median
+std
+quantiles
+missingness
+PSI
+KS statistic
+Wasserstein distance
+
+Compare:
+
+distribution(feature | regime A)
+
+vs
+
+distribution(feature | regime B)
+
+Gere relatório ordenado por maior drift.
+
+Quero identificar se alguma variável mudou radicalmente de distribuição.
+
+==================================================
+PARTE 3 — FEATURE IC POR ANO
+==================================================
+
+Para cada uma das 40 features:
+
+calcule Spearman IC entre feature e target por mês.
+
+Depois agregue:
+
+IC médio por ano
+IC median
+IC std
+ICIR
+
+Para cada feature j:
+
+ICIR_j =
+mean(IC_j)
+/
+std(IC_j)
+
+Produza tabela:
+
+feature
+IC_2014
+...
+IC_2025
+IC_2014_2021
+IC_2022_2025
+delta_IC
+
+Ordene por maior deterioração.
+
+Quero saber explicitamente:
+
+- quais features inverteram sinal;
+- quais permaneceram estáveis;
+- quais ganharam relevância;
+- quais nunca tiveram sinal significativo.
+
+==================================================
+PARTE 4 — IMPORTÂNCIA DO MODELO POR FOLD
+==================================================
+
+Dependendo dos modelos usados, extraia:
+
+LightGBM:
+gain importance
+split importance
+
+CatBoost:
+feature importance / PredictionValuesChange
+
+Ridge:
+coeficientes padronizados
+
+Se houver ensemble, calcule por componente e agregado.
+
+Compare:
+
+2014–2021
+vs
+2022–2025
+
+Quero saber se o modelo está dependendo demais de:
+
+momentum
+short-term returns
+volatility
+liquidity
+fundamentals
+
+e se essa dependência ficou obsoleta.
+
+Use SHAP somente se for computacionalmente viável.
+
+==================================================
+PARTE 5 — TOP-K DIAGNOSTICS
+==================================================
+
+O Rank IC global ficou negativo recentemente, mas top_minus_bottom continuou positivo.
+
+Investigue isso profundamente.
+
+Para K em:
+
+5
+10
+20
+30
+50
+
+calcule:
+
+Precision@K
+Recall@K
+NDCG@K
+mean future return Top-K
+median future return Top-K
+hit rate
+Top-K minus universe
+Top-K minus bottom-K
+Top-K minus equal-weight market universe
+
+Faça isso por ano.
+
+Especialmente:
+
+2022
+2023
+2024
+2025
+
+Determine se existe:
+
+global ranking failure
+
+mas
+
+tail-selection preservation.
+
+Esse ponto é crítico porque o QKP precisa de bons candidatos, não necessariamente ranking perfeito de todas as 629 ações.
+
+==================================================
+PARTE 6 — DECOMPOSIÇÃO DO CAGR
+==================================================
+
+O CAGR histórico de 37.82% do ml_top10 é muito alto.
+
+Decomponha completamente.
+
+Produza:
+
+annual return
+monthly return
+Sharpe by year
+MDD by year
+turnover by year
+number of selected stocks
+contribution by ticker
+contribution by sector
+best 10 months
+worst 10 months
+best 10 stocks
+worst 10 stocks
+
+Determine se o CAGR vem de:
+
+- muitos anos consistentemente bons;
+ou
+- poucos eventos extremos.
+
+Calcule também:
+
+fraction of total wealth generated by top 5 years
+
+e
+
+fraction generated by top 10 individual positions.
+
+Se poucos eventos explicarem a maior parte do retorno, destaque isso como risco de concentração estatística.
+
+==================================================
+PARTE 7 — BENCHMARKS CORRETOS
+==================================================
+
+Adicionar obrigatoriamente:
+
+1/N equal weight
+
+universe equal-weight
+
+top-liquidity equal-weight
+
+Ibovespa
+
+IBrX-100, se dados disponíveis de forma correta
+
+minimum variance
+
+inverse volatility
+
+HRP
+
+multifactor
+
+momentum
+
+ML
+
+research_v2
+
+O benchmark 1/N é obrigatório.
+
+A literatura de DeMiguel, Garlappi e Uppal demonstra que métodos sofisticados de otimização frequentemente não superam 1/N de forma robusta fora da amostra por causa de erro de estimação.
+
+Portanto, nenhuma estratégia deve ser chamada de economicamente relevante sem superar consistentemente 1/N em métricas out-of-sample.
+
+Referência:
+
+DeMiguel, Garlappi, Uppal
+"Optimal Versus Naive Diversification: How Inefficient is the 1/N Portfolio Strategy?"
+Review of Financial Studies, 2009.
+
+==================================================
+PARTE 8 — ROLLING WINDOW VS EXPANDING WINDOW
+==================================================
+
+Uma hipótese central é que o modelo está usando histórico antigo demais.
+
+Se atualmente usamos:
+
+2011 -> t
+
+como expanding window, compare com:
+
+rolling 3 years
+rolling 5 years
+rolling 7 years
+rolling 10 years
+expanding
+
+NÃO escolha usando 2026.
+
+Use folds somente até 2025.
+
+Avalie:
+
+Rank IC
+Precision@10
+NDCG@10
+CAGR
+Sharpe
+MDD
+turnover
+stability
+
+O objetivo é testar concept drift.
+
+Não presuma que janela menor é melhor.
+
+==================================================
+PARTE 9 — RECENCY WEIGHTING
+==================================================
+
+Além de rolling window, teste weighting temporal:
+
+w(age) = exp(-lambda * age)
+
+Teste half-lives razoáveis, por exemplo:
+
+1 year
+2 years
+3 years
+5 years
+
+Somente nos development folds até 2025.
+
+Compare com equal weighting.
+
+Se o modelo suportar sample_weight, use-o diretamente.
+
+Se não suportar, documente.
+
+Isso é preferível a simplesmente apagar o histórico antigo.
+
+==================================================
+PARTE 10 — FEATURES DE REGIME MACRO
+==================================================
+
+O modelo aparentemente pode estar assumindo relações estacionárias.
+
+Incorpore, de forma point-in-time, variáveis de regime se já existirem no pipeline ou puderem ser obtidas com fontes confiáveis:
+
+SELIC
+mudança da SELIC
+IPCA
+mudança da inflação
+retorno do mercado
+volatilidade do mercado
+breadth
+dispersion cross-sectional
+drawdown do mercado
+realized volatility
+câmbio, se disponível corretamente
+commodities, somente se houver fonte confiável
+
+Não adicionar dezenas de features cegamente.
+
+Primeiro construa um pequeno conjunto economicamente justificável.
+
+Permita interações:
+
+momentum × regime
+volatility × regime
+valuation × rates
+profitability × rates
+
+A literatura de ML em asset pricing mostra que métodos não-lineares ganham capacidade justamente ao modelar interações entre características.
+
+Referência principal:
+
+Gu, Kelly, Xiu
+"Empirical Asset Pricing via Machine Learning"
+Review of Financial Studies, 2020.
+
+O paper encontra ganhos de ML em previsão de equity risk premia e destaca a relevância de interações não-lineares, com sinais como momentum, liquidez e volatilidade entre os principais preditores.
+
+==================================================
+PARTE 11 — MODELOS
+==================================================
+
+Manter os baselines atuais.
+
+Testar cuidadosamente:
+
+Ridge / ElasticNet
+LightGBM
+CatBoost
+
+Somente adicionar modelos novos se houver justificativa.
+
+Não introduzir deep learning neste estágio.
+
+Compare:
+
+linear
+tree-based
+ensemble
+
+A hipótese é que árvores podem capturar:
+
+feature × regime
+
+melhor que modelos lineares.
+
+Mas isso precisa ser demonstrado OOS.
+
+==================================================
+PARTE 12 — TARGET
+==================================================
+
+Audite o target atual.
+
+Documente:
+
+horizon
+return definition
+total-return
+excess return ou raw return
+benchmark
+overlap
+
+Teste, se metodologicamente justificável:
+
+future total return
+
+vs
+
+future excess return over market
+
+vs
+
+cross-sectional rank target
+
+Não escolha o target com base em 2026.
+
+Para stock selection cross-sectional, um target relativo pode ser mais estável que retorno absoluto.
+
+Mas prove nos development folds.
+
+==================================================
+PARTE 13 — PURGING E EMBARGO
+==================================================
+
+Se o label usa horizontes sobrepostos, implemente purging e embargo adequados.
+
+Por exemplo, se target usa 63 dias futuros:
+
+uma amostra imediatamente anterior ao início da validação pode conter informação do período de validação no seu label.
+
+Isso precisa ser removido.
+
+Implemente:
+
+purge overlapping labels
+
+e
+
+embargo period
+
+adequado ao horizonte.
+
+Documente claramente.
+
+Use literatura de validação financeira para evitar leakage temporal.
+
+==================================================
+PARTE 14 — CUSTOS DE TRANSAÇÃO
+==================================================
+
+O turnover está alto.
+
+Teste custos:
+
+5 bps
+10 bps
+25 bps
+50 bps
+100 bps
+
+Produza:
+
+gross CAGR
+net CAGR
+gross Sharpe
+net Sharpe
+turnover
+
+Não escolha custo que favoreça a estratégia.
+
+Use range de sensitivity.
+
+==================================================
+PARTE 15 — REDUÇÃO DE TURNOVER
+==================================================
+
+research_v2 tem:
+
+turnover ~7.66x/year
+
+Teste:
+
+rank hysteresis
+minimum holding period
+rebalance threshold
+buffer zones
+turnover penalty
+QKP turnover penalty
+
+Exemplo:
+
+ativo entra se rank <= 10
+
+mas só sai se rank > 20
+
+Compare:
+
+turnover
+CAGR
+Sharpe
+MDD
+
+Objetivo:
+
+reduzir turnover sem destruir sinal.
+
+==================================================
+PARTE 16 — RISK CONTROL
+==================================================
+
+O research_v2 protegeu muito melhor em 2026.
+
+Comparação:
+
+ML:
+CAGR -30.39%
+MDD -22.65%
+
+Research V2:
+CAGR -0.71%
+MDD -10.91%
+
+Investigue exatamente POR QUE.
+
+Decomponha o research_v2 em componentes.
+
+Exemplo:
+
+ML contribution
+factor contribution
+uncertainty penalty
+risk penalty
+QKP diversification
+allocation
+
+Faça ablation study.
+
+Execute:
+
+ML only
+
+ML + factor
+
+ML + uncertainty
+
+ML + factor + uncertainty
+
+ML + risk
+
+full research_v2
+
+Quero saber qual componente protegeu o portfólio.
+
+==================================================
+PARTE 17 — QKP
+==================================================
+
+O QKP não deve ser usado para mascarar modelo ruim.
+
+Separar claramente:
+
+signal quality
+
+e
+
+portfolio construction quality.
+
+Avaliar primeiro:
+
+Top-K ML equal weight
+
+Depois:
+
+mesmo candidato -> QKP
+
+Depois:
+
+QKP -> allocation
+
+Assim sabemos quanto do ganho vem de:
+
+ML
+
+vs
+
+QKP
+
+vs
+
+risk allocation.
+
+==================================================
+PARTE 18 — COVARIÂNCIA
+==================================================
+
+Para qualquer otimização de risco, usar estimadores robustos.
+
+Comparar:
+
+sample covariance
+
+vs
+
+Ledoit-Wolf shrinkage
+
+A literatura de Ledoit e Wolf mostra que covariance shrinkage reduz erro de estimação relevante para portfolio optimization.
+
+Referência:
+
+Ledoit & Wolf
+"Honey, I Shrunk the Sample Covariance Matrix"
+
+Se Ledoit-Wolf já existe, verificar se está aplicado corretamente.
+
+Não usar covariance calculada com dados futuros.
+
+==================================================
+PARTE 19 — REGIME DETECTION
+==================================================
+
+Somente depois dos diagnósticos anteriores, considerar regime detection.
+
+Primeiro usar abordagem simples e interpretável.
+
+Exemplo:
+
+high/low market volatility
+
+high/low rates
+
+bull/bear market
+
+Não começar com HMM complexo sem necessidade.
+
+Teste se conditional models funcionam melhor:
+
+model_A for low-vol regime
+model_B for high-vol regime
+
+versus
+
+single model + regime features
+
+Prefira a solução mais simples que funcione OOS.
+
+==================================================
+PARTE 20 — ACCEPTANCE GATE
+==================================================
+
+Hoje:
+
+accepted=False
+
+Investigue exatamente por quê.
+
+O output precisa mostrar:
+
+gate name
+threshold
+actual value
+pass/fail
+
+Por exemplo:
+
+recent_rank_ic       >= 0.02     actual=-0.05 FAIL
+Sharpe               >= 0.75     actual=0.90 PASS
+MDD                  >= -35%     actual=-34% PASS
+turnover             <= 5x       actual=7.7 FAIL
+
+Não altere thresholds só para obter accepted=True.
+
+Os gates devem ser economicamente e estatisticamente justificáveis.
+
+Criar gates separados:
+
+model_signal_accepted
+
+portfolio_strategy_accepted
+
+production_ready
+
+==================================================
+PARTE 21 — ESTATÍSTICA DA PERFORMANCE
+==================================================
+
+Não olhar apenas Sharpe pontual.
+
+Adicionar:
+
+bootstrap confidence interval
+
+para:
+
+CAGR
+Sharpe
+Rank IC
+Top-K spread
+
+Usar block bootstrap ou método que preserve dependência temporal.
+
+Não usar bootstrap IID simples em retornos mensais se houver autocorrelação relevante.
+
+Calcular também:
+
+standard error of mean IC
+
+IC t-stat
+
+ICIR
+
+hit rate
+
+==================================================
+PARTE 22 — MULTIPLE TESTING
+==================================================
+
+Estamos testando várias features, modelos e configurações.
+
+Evitar data mining.
+
+Registrar todos os experimentos.
+
+Não esconder resultados ruins.
+
+Não executar centenas de configurações e reportar apenas a melhor.
+
+Criar:
+
+data/gold/experiments/
+
+ou equivalente, com:
+
+experiment_id
+timestamp
+git commit
+features
+parameters
+training window
+validation folds
+metrics
+
+Isso é obrigatório para auditabilidade.
+
+==================================================
+PARTE 23 — 2026 COMO DIAGNÓSTICO
+==================================================
+
+Depois de escolher a configuração SOMENTE com dados até 2025:
+
+rode 2026 apenas uma vez para reportar.
+
+Não use o resultado para refazer a seleção.
+
+Compare:
+
+current production artifact
+
+vs
+
+new candidate
+
+em 2026.
+
+Mas deixe explícito no relatório:
+
+"2026 has already been observed during research and is no longer a pristine holdout."
+
+O próximo holdout verdadeiramente novo será futuro.
+
+==================================================
+PARTE 24 — ARQUIVOS A INVESTIGAR
+==================================================
+
+Localize primeiro os arquivos reais do projeto.
+
+Procure especialmente:
+
+scripts/run_backtest.py
+
+scripts de treinamento
+
+packages/portfolio_core/
+
+model training / signal model
+
+feature engineering
+
+backtest engine
+
+corporate actions adjustment
+
+CVM fundamentals PIT join
+
+QKP input construction
+
+risk/covariance
+
+research_v2 score
+
+acceptance gate
+
+Não invente caminhos.
+
+Use grep/find para localizar as classes e funções reais.
+
+Antes de alterar, produza mapa:
+
+file
+class/function
+responsibility
+proposed change
+
+==================================================
+PARTE 25 — ALTERAÇÕES DESEJADAS
+==================================================
+
+Depois da investigação, implementar somente mudanças sustentadas pelos diagnósticos.
+
+Possíveis mudanças, dependendo dos resultados:
+
+1. rolling/weighted training;
+2. recency weighting;
+3. regime macro features;
+4. target cross-sectional;
+5. top-K objective;
+6. improved turnover control;
+7. stronger risk overlay;
+8. Ledoit-Wolf;
+9. model ensemble weighting;
+10. better acceptance gate.
+
+Não implemente todas automaticamente.
+
+Escolha com base nos resultados.
+
+==================================================
+PARTE 26 — TESTES
+==================================================
+
+Todos os testes existentes devem continuar passando.
+
+Adicionar testes para:
+
+no future fundamentals
+no future prices
+no future corporate actions
+purging
+embargo
+rolling training window
+sample weights
+deterministic predictions
+same data -> same result
+top-K metrics
+regime features point-in-time
+transaction cost accounting
+turnover accounting
+QKP no future covariance
+trained_until respected
+
+==================================================
+PARTE 27 — RELATÓRIO FINAL
+==================================================
+
+Quero um relatório técnico contendo:
+
+1. causa principal da deterioração;
+2. evidência de feature drift;
+3. evidência de concept drift;
+4. ranking das features mais degradadas;
+5. performance Top-K;
+6. performance anual;
+7. origem do CAGR de 37.82%;
+8. importância do regime 2022–2025;
+9. explicação do desempenho de 2026;
+10. comparação expanding vs rolling;
+11. comparação recency weighting;
+12. efeito das regime features;
+13. ablation do research_v2;
+14. custo de turnover;
+15. resultados líquidos de custos;
+16. comparação com 1/N;
+17. comparação com multifator;
+18. comparação com momentum;
+19. comparação com QKP;
+20. decisão do acceptance gate.
+
+==================================================
+PARTE 28 — CRITÉRIO DE SUCESSO
+==================================================
+
+NÃO considero sucesso simplesmente conseguir:
+
+2026 > 0%
+
+Isso seria perigoso.
+
+Considero sucesso se a nova estratégia mostrar:
+
+- melhor estabilidade entre folds;
+- menos dependência de 2014–2021;
+- Rank IC ou Top-K metrics mais estáveis;
+- menor MDD;
+- menor turnover;
+- resultados líquidos positivos em múltiplos folds;
+- vantagem consistente sobre 1/N/multifator;
+- comportamento mais robusto nos regimes recentes.
+
+Mesmo que o CAGR final fique menor que 37.82%.
+
+Por exemplo, eu prefiro:
+
+CAGR ~15–20%
+Sharpe > 1
+MDD controlado
+boa estabilidade
+
+a:
+
+CAGR 38%
+Sharpe 0.89
+forte regime dependence.
+
+==================================================
+REFERÊNCIAS QUE DEVEM EMBASAR AS DECISÕES
+==================================================
+
+1. Gu, Kelly & Xiu (2020)
+"Empirical Asset Pricing via Machine Learning"
+Review of Financial Studies.
+
+Use para:
+- ML cross-sectional;
+- nonlinear interactions;
+- predictor importance;
+- momentum/liquidity/volatility;
+- rigorous OOS asset pricing.
+
+2. DeMiguel, Garlappi & Uppal (2009)
+"Optimal Versus Naive Diversification: How Inefficient is the 1/N Portfolio Strategy?"
+Review of Financial Studies.
+
+Use para:
+- 1/N benchmark;
+- estimation error;
+- portfolio robustness.
+
+3. Ledoit & Wolf
+"Honey, I Shrunk the Sample Covariance Matrix"
+
+Use para:
+- covariance shrinkage;
+- avoiding unstable sample covariance.
+
+4. Jegadeesh & Titman
+momentum literature.
+
+Use para:
+- momentum baseline;
+- 12-1 momentum.
+
+5. Novy-Marx
+"The Other Side of Value: The Gross Profitability Premium"
+
+Use para:
+- gross profitability;
+- quality/profitability factors.
+
+Não cite papers apenas como decoração.
+Cada referência deve corresponder a uma decisão metodológica concreta.
+
+==================================================
+IMPORTANTE
+==================================================
+
+O objetivo dessa investigação NÃO é fabricar um modelo que ganhe em 2026.
+
+O objetivo é descobrir por que um modelo muito forte historicamente perdeu eficácia após 2021 e construir uma arquitetura mais robusta a mudanças de regime.
+
+Não faça alterações silenciosas.
+
+Para cada mudança, reporte:
+
+ANTES
+DEPOIS
+JUSTIFICATIVA
+EVIDÊNCIA
+RISCO DE OVERFITTING
+
+Se uma hipótese falhar, mantenha o resultado no relatório.
+
+A integridade científica desta investigação é mais importante que aumentar o CAGR.

@@ -3,7 +3,7 @@ COMPOSE ?= docker compose
 PYTHON ?= python3
 RUN_USER ?= $(shell id -u):$(shell id -g)
 
-.PHONY: help env up down logs test lint demo ingest-b3 ingest-corporate-actions ingest-cvm ingest-cvm-registry ingest-macro refresh-research-data generate-issuer-bridge build-fundamentals tune train backtest native clean
+.PHONY: help env up down logs test lint demo ingest-b3 ingest-corporate-actions ingest-cvm ingest-cvm-registry ingest-macro refresh-research-data generate-issuer-bridge build-fundamentals tune train backtest diagnose-model-degradation build-regime-candidates risk-benchmarks qkp-ablation bootstrap-performance decompose-performance native clean
 
 help:
 	@printf '%s\n' \
@@ -16,21 +16,24 @@ help:
 	  'make ingest-cvm YEAR=2025 DOC=ITR     - download CVM ITR/DFP statements' \
 	  'make ingest-cvm-registry START_YEAR=2010 END_YEAR=2026 - historical ticker/CVM bridge' \
 	  'make ingest-macro START=2011-01-01    - download BCB SGS macro series' \
-	  'make refresh-research-data START_YEAR=2011 END_YEAR=2026 - automatic official-data refresh' \
-	  'PIPELINE_PROFILE=low-impact make refresh-research-data ... - 3 HTTP / 2 CPU threads' \
-	  'make generate-issuer-bridge           - match B3 tickers to CVM issuer candidates' \
-	  'make build-fundamentals BRIDGE=...    - point-in-time join governed ticker/CVM bridge' \
-	  'make tune TRIALS=25                   - time-aware Optuna tuning; final year untouched' \
-	  'make train                            - walk-forward evaluation + train final ML model' \
-	  'make backtest                         - run reproducible monthly walk-forward backtest' \
-	  'make backtest USE_TRAINED_MODEL=1     - backtest models/signal_model.joblib on future data' \
+	  'make refresh-research-data START_YEAR=2011 END_YEAR=2026 - rebuild leakage-safe official-data panel' \
+	  'make diagnose-model-degradation        - development-only drift/IC/Top-K/window/target diagnostics' \
+	  'make build-regime-candidates           - build PIT regime candidates; does not enable them in production' \
+	  'make risk-benchmarks                    - sample vs Ledoit-Wolf minvar/inverse-vol/HRP on <=2025' \
+	  'make tune TRIALS=25                    - purged time-aware tuning; 2026 never enters selection' \
+	  'make train                            - train final artifact with labels known by 2025-12-31' \
+	  'make backtest                         - development-only purged walk-forward + 1/N + gates' \
+	  'make backtest USE_TRAINED_MODEL=1     - diagnostic 2026 only; cannot change gates' \
+	  'make qkp-ablation                      - isolate ML vs QKP vs HRP on development data' \
+	  'make bootstrap-performance             - moving-block bootstrap confidence intervals' \
+	  'make decompose-performance             - annual/monthly/ticker/sector concentration report' \
 	  'make test                             - Python tests + C++ exact-solver tests' \
 	  'make native                           - build exact native QKP reference solver' \
 	  'make down                             - stop local stack'
 
 env:
 	@test -f .env || cp .env.example .env
-	@mkdir -p data/{raw,bronze,silver,gold,cache,demo} models
+	@mkdir -p data/{raw,bronze,silver,gold,cache,demo} data/gold/experiments models
 
 demo: env
 	$(COMPOSE) up -d postgres valkey
@@ -52,7 +55,6 @@ logs:
 ingest-b3: env
 	@test -n "$(YEAR)" || (echo 'Usage: make ingest-b3 YEAR=2025' && exit 2)
 	$(COMPOSE) run --rm --build --user $(RUN_USER) api python /workspace/scripts/ingest_b3.py --year $(YEAR) $(if $(NO_DOWNLOAD),--no-download,) $(if $(FORCE),--force,)
-
 
 ingest-corporate-actions: env
 	$(COMPOSE) run --rm --build --user $(RUN_USER) api python /workspace/scripts/ingest_corporate_actions.py $(if $(FORCE),--force,) $(if $(SKIP_ACTION_SYNC),--skip-sync,)
@@ -76,6 +78,15 @@ generate-issuer-bridge: env
 build-fundamentals: env
 	$(COMPOSE) run --rm --build --user $(RUN_USER) api python /workspace/scripts/build_fundamentals.py $(if $(BRIDGE),--bridge /workspace/$(BRIDGE),)
 
+diagnose-model-degradation: env
+	$(COMPOSE) run --rm --build --user $(RUN_USER) api python /workspace/scripts/diagnose_model_degradation.py
+
+build-regime-candidates: env
+	$(COMPOSE) run --rm --build --user $(RUN_USER) api python /workspace/scripts/build_regime_candidates.py
+
+risk-benchmarks: env
+	$(COMPOSE) run --rm --build --user $(RUN_USER) api python /workspace/scripts/run_risk_benchmarks.py
+
 tune: env
 	$(COMPOSE) run --rm --build --user $(RUN_USER) api python /workspace/scripts/tune_model.py --trials $(or $(TRIALS),25)
 
@@ -84,6 +95,15 @@ train: env
 
 backtest: env
 	$(COMPOSE) run --rm --build --user $(RUN_USER) api python /workspace/scripts/run_backtest.py $(if $(filter 1 true yes,$(USE_TRAINED_MODEL)),--use-trained-model,)
+
+qkp-ablation: env
+	$(COMPOSE) run --rm --build --user $(RUN_USER) api python /workspace/scripts/qkp_ablation.py
+
+bootstrap-performance: env
+	$(COMPOSE) run --rm --build --user $(RUN_USER) api python /workspace/scripts/bootstrap_performance.py
+
+decompose-performance: env
+	$(COMPOSE) run --rm --build --user $(RUN_USER) api python /workspace/scripts/decompose_performance.py $(or $(STRATEGY),development_research_v2)
 
 test:
 	$(COMPOSE) run --rm --build api pytest -q /workspace/packages/portfolio_core/tests /workspace/services/api/tests

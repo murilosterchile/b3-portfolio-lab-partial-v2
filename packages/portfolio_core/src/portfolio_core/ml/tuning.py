@@ -6,7 +6,7 @@ import numpy as np
 import optuna
 import polars as pl
 
-from .walk_forward import DEFAULT_FEATURES, train_once
+from .walk_forward import DEFAULT_FEATURES, TrainingPolicy, train_once
 
 
 @dataclass(frozen=True)
@@ -18,7 +18,6 @@ class TuningResult:
 
 
 def _suggest_config(trial: optuna.Trial) -> dict:
-    # The ranges are deliberately conservative for medium-size tabular financial panels.
     lightgbm = {
         "n_estimators": trial.suggest_int("lgb_n_estimators", 300, 1000, step=100),
         "learning_rate": trial.suggest_float("lgb_learning_rate", 0.01, 0.08, log=True),
@@ -60,16 +59,14 @@ def tune_ensemble(
     n_trials: int = 25,
     n_validation_years: int = 3,
     seed: int = 42,
+    training_policy: TrainingPolicy | None = None,
 ) -> TuningResult:
-    """Tune the ensemble with expanding-window, time-ordered validation only.
-
-    ``frame`` should already exclude the final untouched holdout year. The objective is mean monthly
-    cross-sectional Rank IC. No shuffled cross-validation is used.
-    """
+    """Tune only on supplied development data using purged time-ordered folds."""
     features = feature_names or DEFAULT_FEATURES
+    policy = training_policy or TrainingPolicy()
     years = sorted(set(frame["trade_date"].dt.year().to_list()))
     if len(years) < 4:
-        raise ValueError("At least four years are required before tuning")
+        raise ValueError("At least four development years are required before tuning")
     validation_years = years[-min(n_validation_years, len(years) - 2) :]
 
     def objective(trial: optuna.Trial) -> float:
@@ -87,11 +84,12 @@ def tune_ensemble(
                 feature_names=features,
                 seed=seed + year,
                 model_config=config,
+                training_policy=policy,
             )
             if np.isfinite(metrics.rank_ic):
                 scores.append(metrics.rank_ic)
         if not scores:
-            raise optuna.TrialPruned("No eligible expanding-window folds")
+            raise optuna.TrialPruned("No eligible purged development folds")
         score = float(np.mean(scores))
         trial.set_user_attr("fold_rank_ic", scores)
         return score

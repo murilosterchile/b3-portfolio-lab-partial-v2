@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "b3-portfolio-core"
+version = "0.1.0"
+description = "Point-in-time B3 market data, quantitative research, ML and exact portfolio optimization core."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "numpy>=2.1",
+  "polars>=1.25",
+  "pyarrow>=19",
+  "httpx>=0.28",
+  "scipy>=1.15",
+  "scikit-learn>=1.6",
+  "lightgbm>=4.6",
+  "catboost>=1.2.8",
+  "optuna>=4.2",
+  "joblib>=1.4",
+  "pyscipopt>=5.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3", "pytest-cov>=6", "hypothesis>=6.130", "ruff>=0.11"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/portfolio_core"]

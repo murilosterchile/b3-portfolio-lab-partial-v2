@@ -1,0 +1,835 @@
+ticker,issuer_short_name,candidate_CD_CVM,candidate_DENOM_CIA,match_type,similarity,status
+AALR3,ALLIAR,12823,ALIPERTI S.A.,name_similarity,0.5714,review_required
+AALR3,ALLIAR,22357,ALLOS S.A.,name_similarity,0.5455,review_required
+AALR3,ALLIAR,25003,SIMPAR S.A.,name_similarity,0.5,review_required
+ADHM3,ADVANCED-DH,21156,J. MACEDO S.A.,name_similarity,0.4706,review_required
+ADHM3,ADVANCED-DH,25291,BRAVA ENERGIA S.A.,name_similarity,0.4545,review_required
+ADHM3,ADVANCED-DH,4170,VALE S.A.,name_similarity,0.4286,review_required
+ADMF3,CIABRASF,11762,VULCABRAS S.A.,name_similarity,0.7059,review_required
+ADMF3,CIABRASF,22560,INBRANDS S.A.,name_similarity,0.625,review_required
+ADMF3,CIABRASF,4448,COBRASMA S.A.,name_similarity,0.625,review_required
+AESB3,AES BRASIL,1023,BCO BRASIL S.A.,name_similarity,0.7,review_required
+AESB3,AES BRASIL,25810,ATHENA SAÚDE BRASIL SA,name_similarity,0.6923,review_required
+AESB3,AES BRASIL,18376,ISA ENERGIA BRASIL,name_similarity,0.64,review_required
+AESB9,AES BRASIL,1023,BCO BRASIL S.A.,name_similarity,0.7,review_required
+AESB9,AES BRASIL,25810,ATHENA SAÚDE BRASIL SA,name_similarity,0.6923,review_required
+AESB9,AES BRASIL,18376,ISA ENERGIA BRASIL,name_similarity,0.64,review_required
+AFLT3,AFLUENTE T,24813,LOCALIZA FLEET S.A.,name_similarity,0.5455,review_required
+AFLT3,AFLUENTE T,5762,ETERNIT S.A.,name_similarity,0.5,review_required
+AFLT3,AFLUENTE T,18660,CPFL ENERGIA S.A.,name_similarity,0.5,review_required
+AHEB3,SPTURIS,21130,TRISUL S.A.,name_similarity,0.6154,review_required
+AHEB3,SPTURIS,26328,AUSTRAVIAS S.A.,name_similarity,0.5882,review_required
+AHEB3,SPTURIS,19771,ARTERIS S.A.,name_similarity,0.5714,review_required
+AHEB5,SPTURIS,21130,TRISUL S.A.,name_similarity,0.6154,review_required
+AHEB5,SPTURIS,26328,AUSTRAVIAS S.A.,name_similarity,0.5882,review_required
+AHEB5,SPTURIS,19771,ARTERIS S.A.,name_similarity,0.5714,review_required
+AHEB6,SPTURIS,21130,TRISUL S.A.,name_similarity,0.6154,review_required
+AHEB6,SPTURIS,26328,AUSTRAVIAS S.A.,name_similarity,0.5882,review_required
+AHEB6,SPTURIS,19771,ARTERIS S.A.,name_similarity,0.5714,review_required
+ALPK3,ESTAPAR,18724,BRADESPAR S.A.,name_similarity,0.625,review_required
+ALPK3,ESTAPAR,25003,SIMPAR S.A.,name_similarity,0.6154,review_required
+ALPK3,ESTAPAR,20354,TERRA SANTA AGRO S.A.,name_similarity,0.5714,review_required
+ALSO3,ALIANSCSONAE,20567,BCO PINE S.A,name_similarity,0.5714,review_required
+ALSO3,ALIANSCSONAE,24406,BANCO INTER S.A.,name_similarity,0.5455,review_required
+ALSO3,ALIANSCSONAE,23302,QUALITY SOFTWARE S.A.,name_similarity,0.5185,review_required
+AMAR3,LOJAS MARISA,8087,LOJAS AMERICANAS S.A.,name_similarity,0.6923,review_required
+AMAR3,LOJAS MARISA,21121,SUL AMERICA S.A.,name_similarity,0.5714,review_required
+AMAR3,LOJAS MARISA,22055,MARISA LOJAS S.A.,name_similarity,0.5455,review_required
+AMAR9,LOJAS MARISA,8087,LOJAS AMERICANAS S.A.,name_similarity,0.6923,review_required
+AMAR9,LOJAS MARISA,21121,SUL AMERICA S.A.,name_similarity,0.5714,review_required
+AMAR9,LOJAS MARISA,22055,MARISA LOJAS S.A.,name_similarity,0.5455,review_required
+ARML3,ARMAC,6173,TAURUS ARMAS S.A.,name_similarity,0.5,ambiguous
+ARML3,ARMAC,20729,PARANA BCO S.A.,name_similarity,0.5,ambiguous
+ARML3,ARMAC,21156,J. MACEDO S.A.,name_similarity,0.5,ambiguous
+ARZZ3,AREZZO CO,26174,AUREN OPERAÇÕES S.A.,name_similarity,0.5455,review_required
+ARZZ3,AREZZO CO,21032,ALGAR TELECOM S/A,name_similarity,0.5,review_required
+ARZZ3,AREZZO CO,26573,TROCAFONE S.A.,name_similarity,0.4706,review_required
+ASAI3,ASSAI,7617,ITAÚSA S.A.,name_similarity,0.5455,review_required
+ASAI3,ASSAI,16101,GAFISA S.A.,name_similarity,0.5455,review_required
+ASAI3,ASSAI,6505,GRUPO CASAS BAHIA S.A.,name_similarity,0.5,review_required
+ATOM3,ATOMPAR,25003,SIMPAR S.A.,name_similarity,0.6154,review_required
+ATOM3,ATOMPAR,27413,AUTOMOB S.A.,name_similarity,0.5714,review_required
+ATOM3,ATOMPAR,20516,SAO MARTINHO S.A.,name_similarity,0.5556,review_required
+AURE3,AUREN,4146,KARSTEN S.A.,name_similarity,0.6667,ambiguous
+AURE3,AUREN,26620,AUREN ENERGIA S.A.,name_similarity,0.5882,ambiguous
+AURE3,AUREN,25917,RAÍZEN S.A.,name_similarity,0.5455,ambiguous
+AZEV3,AZEVEDO,11975,AZEVEDO E TRAVASSOS S.A.,name_similarity,0.5833,ambiguous
+AZEV3,AZEVEDO,21156,J. MACEDO S.A.,name_similarity,0.5714,ambiguous
+AZEV3,AZEVEDO,26409,VERO S.A.,name_similarity,0.5455,ambiguous
+AZEV4,AZEVEDO,11975,AZEVEDO E TRAVASSOS S.A.,name_similarity,0.5833,ambiguous
+AZEV4,AZEVEDO,21156,J. MACEDO S.A.,name_similarity,0.5714,ambiguous
+AZEV4,AZEVEDO,26409,VERO S.A.,name_similarity,0.5455,ambiguous
+AZTE3,AZT ENERGIA,23230,RAIZEN ENERGIA S.A.,name_similarity,0.7826,review_required
+AZTE3,AZT ENERGIA,15253,ENERGISA S.A.,name_similarity,0.7778,review_required
+AZTE3,AZT ENERGIA,2437,AXIA ENERGIA S.A.,name_similarity,0.7619,review_required
+B3SA3,B3,13773,PBG S/A,name_similarity,0.4,review_required
+B3SA3,B3,20575,JBS S.A.,name_similarity,0.4,review_required
+B3SA3,B3,16292,BRF S.A.,name_similarity,0.4,review_required
+BAHI3,BAHEMA,4820,BRASKEM S.A.,name_similarity,0.6154,review_required
+BAHI3,BAHEMA,4448,COBRASMA S.A.,name_similarity,0.5714,review_required
+BAHI3,BAHEMA,18724,BRADESPAR S.A.,name_similarity,0.5333,review_required
+BAUH4,EXCELSIOR,21091,DEXCO S.A.,name_similarity,0.5714,review_required
+BAUH4,EXCELSIOR,25542,CVLB BRASIL S.A,name_similarity,0.4211,review_required
+BAUH4,EXCELSIOR,26646,CANTU STORE S.A.,name_similarity,0.4211,review_required
+BAZA3,AMAZONIA,26930,AMAZONE FUN PARKS S.A.,name_similarity,0.6087,review_required
+BAZA3,AMAZONIA,22470,MAGAZINE LUIZA S.A.,name_similarity,0.5714,review_required
+BAZA3,AMAZONIA,94,PANATLANTICA S.A.,name_similarity,0.5,review_required
+BAZA9,AMAZONIA,26930,AMAZONE FUN PARKS S.A.,name_similarity,0.6087,review_required
+BAZA9,AMAZONIA,22470,MAGAZINE LUIZA S.A.,name_similarity,0.5714,review_required
+BAZA9,AMAZONIA,94,PANATLANTICA S.A.,name_similarity,0.5,review_required
+BBAS3,BRASIL,25542,CVLB BRASIL S.A,name_similarity,0.75,ambiguous
+BBAS3,BRASIL,1023,BCO BRASIL S.A.,name_similarity,0.7059,ambiguous
+BBAS3,BRASIL,6211,FRAS-LE S.A.,name_similarity,0.6667,ambiguous
+BBRK3,BR BROKERS,19925,BR PROPERTIES S.A.,name_similarity,0.6667,review_required
+BBRK3,BR BROKERS,25860,BRBI BR PARTNERS S.A,name_similarity,0.6087,review_required
+BBRK3,BR BROKERS,27375,BRASIL BIOFUELS S.A.,name_similarity,0.5217,review_required
+BGIP10,BANESE,22560,INBRANDS S.A.,name_similarity,0.5714,review_required
+BGIP10,BANESE,18724,BRADESPAR S.A.,name_similarity,0.5333,review_required
+BGIP10,BANESE,20567,BCO PINE S.A,name_similarity,0.5333,review_required
+BGIP3,BANESE,22560,INBRANDS S.A.,name_similarity,0.5714,review_required
+BGIP3,BANESE,18724,BRADESPAR S.A.,name_similarity,0.5333,review_required
+BGIP3,BANESE,20567,BCO PINE S.A,name_similarity,0.5333,review_required
+BGIP4,BANESE,22560,INBRANDS S.A.,name_similarity,0.5714,review_required
+BGIP4,BANESE,18724,BRADESPAR S.A.,name_similarity,0.5333,review_required
+BGIP4,BANESE,20567,BCO PINE S.A,name_similarity,0.5333,review_required
+BKBR3,BK BRASIL,25542,CVLB BRASIL S.A,name_similarity,0.7778,review_required
+BKBR3,BK BRASIL,1023,BCO BRASIL S.A.,name_similarity,0.7368,review_required
+BKBR3,BK BRASIL,20958,BCO ABC BRASIL S.A.,name_similarity,0.6364,review_required
+BLAU3,BLAU,1562,BAUMER S.A.,name_similarity,0.6,review_required
+BLAU3,BLAU,24910,LWSA S/A,name_similarity,0.5,review_required
+BLAU3,BLAU,26506,LUPO S.A.,name_similarity,0.5,review_required
+BLUT3,B TECH EQI,12319,BLUE TECH SOLUTIONS EQI S.A.,name_similarity,0.5714,review_required
+BLUT3,B TECH EQI,20435,TECNISA S.A.,name_similarity,0.5333,review_required
+BLUT3,B TECH EQI,22519,TECHNOS S.A.,name_similarity,0.5333,review_required
+BLUT4,B TECH EQI,12319,BLUE TECH SOLUTIONS EQI S.A.,name_similarity,0.5714,review_required
+BLUT4,B TECH EQI,20435,TECNISA S.A.,name_similarity,0.5333,review_required
+BLUT4,B TECH EQI,22519,TECHNOS S.A.,name_similarity,0.5333,review_required
+BMIN3,MERC INVEST,23965,CINESYSTEM S.A.,name_similarity,0.6,review_required
+BMIN3,MERC INVEST,80217,"INTER & CO, INC.",name_similarity,0.5,review_required
+BMIN3,MERC INVEST,57886,"INTER & CO, INC.",name_similarity,0.5,review_required
+BMIN4,MERC INVEST,23965,CINESYSTEM S.A.,name_similarity,0.6,review_required
+BMIN4,MERC INVEST,80217,"INTER & CO, INC.",name_similarity,0.5,review_required
+BMIN4,MERC INVEST,57886,"INTER & CO, INC.",name_similarity,0.5,review_required
+BMKS3,BIC MONARK,25003,SIMPAR S.A.,name_similarity,0.5333,review_required
+BMKS3,BIC MONARK,24848,C&A MODAS S.A.,name_similarity,0.5333,review_required
+BMKS3,BIC MONARK,25755,BANCO MODAL S.A.,name_similarity,0.5263,review_required
+BMOB3,BEMOBI TECH,25500,BEMOBI MOBILE TECH S.A.,name_similarity,0.7692,review_required
+BMOB3,BEMOBI TECH,24660,BBM LOGÍSTICA S.A.,name_similarity,0.5455,review_required
+BMOB3,BEMOBI TECH,6211,FRASLE MOBILITY S.A.,name_similarity,0.5,review_required
+BNBR3,NORD BRASIL,1023,BCO BRASIL S.A.,name_similarity,0.7619,review_required
+BNBR3,NORD BRASIL,21466,BANCO RCI BRASIL S.A.,name_similarity,0.75,review_required
+BNBR3,NORD BRASIL,20958,BCO ABC BRASIL S.A.,name_similarity,0.6667,review_required
+BPAC11,BTGP BANCO,20729,PARANA BCO S.A.,name_similarity,0.6,review_required
+BPAC11,BTGP BANCO,21199,BCO PAN S.A.,name_similarity,0.5882,review_required
+BPAC11,BTGP BANCO,24600,BANCO BMG S/A,name_similarity,0.5882,review_required
+BPAC12,BTGP BANCO,20729,PARANA BCO S.A.,name_similarity,0.6,review_required
+BPAC12,BTGP BANCO,21199,BCO PAN S.A.,name_similarity,0.5882,review_required
+BPAC12,BTGP BANCO,24600,BANCO BMG S/A,name_similarity,0.5882,review_required
+BPAC13,BTGP BANCO,20729,PARANA BCO S.A.,name_similarity,0.6,review_required
+BPAC13,BTGP BANCO,21199,BCO PAN S.A.,name_similarity,0.5882,review_required
+BPAC13,BTGP BANCO,24600,BANCO BMG S/A,name_similarity,0.5882,review_required
+BPAC3,BTGP BANCO,20729,PARANA BCO S.A.,name_similarity,0.6,review_required
+BPAC3,BTGP BANCO,21199,BCO PAN S.A.,name_similarity,0.5882,review_required
+BPAC3,BTGP BANCO,24600,BANCO BMG S/A,name_similarity,0.5882,review_required
+BPAC5,BTGP BANCO,20729,PARANA BCO S.A.,name_similarity,0.6,review_required
+BPAC5,BTGP BANCO,21199,BCO PAN S.A.,name_similarity,0.5882,review_required
+BPAC5,BTGP BANCO,24600,BANCO BMG S/A,name_similarity,0.5882,review_required
+BPAC9,BTGP BANCO,20729,PARANA BCO S.A.,name_similarity,0.6,review_required
+BPAC9,BTGP BANCO,21199,BCO PAN S.A.,name_similarity,0.5882,review_required
+BPAC9,BTGP BANCO,24600,BANCO BMG S/A,name_similarity,0.5882,review_required
+BRDT3,PETROBRAS BR,25780,PETRORECÔNCAVO S.A.,name_similarity,0.56,review_required
+BRDT3,PETROBRAS BR,20087,EMBRAER S.A.,name_similarity,0.5556,review_required
+BRDT3,PETROBRAS BR,26891,ELETRORIVER S.A.,name_similarity,0.5455,review_required
+BRGE3,ALFA CONSORC,25143,PACAEMBU CONSTRUTORA S.A.,name_similarity,0.5333,review_required
+BRGE3,ALFA CONSORC,4693,CONSERVAS ODERICH S.A.,name_similarity,0.5185,review_required
+BRGE3,ALFA CONSORC,22357,ALLOS S.A.,name_similarity,0.5,review_required
+BRGE5,ALFA CONSORC,25143,PACAEMBU CONSTRUTORA S.A.,name_similarity,0.5333,review_required
+BRGE5,ALFA CONSORC,4693,CONSERVAS ODERICH S.A.,name_similarity,0.5185,review_required
+BRGE5,ALFA CONSORC,22357,ALLOS S.A.,name_similarity,0.5,review_required
+BRGE6,ALFA CONSORC,25143,PACAEMBU CONSTRUTORA S.A.,name_similarity,0.5333,review_required
+BRGE6,ALFA CONSORC,4693,CONSERVAS ODERICH S.A.,name_similarity,0.5185,review_required
+BRGE6,ALFA CONSORC,22357,ALLOS S.A.,name_similarity,0.5,review_required
+BRGE7,ALFA CONSORC,25143,PACAEMBU CONSTRUTORA S.A.,name_similarity,0.5333,review_required
+BRGE7,ALFA CONSORC,4693,CONSERVAS ODERICH S.A.,name_similarity,0.5185,review_required
+BRGE7,ALFA CONSORC,22357,ALLOS S.A.,name_similarity,0.5,review_required
+BRGE8,ALFA CONSORC,25143,PACAEMBU CONSTRUTORA S.A.,name_similarity,0.5333,review_required
+BRGE8,ALFA CONSORC,4693,CONSERVAS ODERICH S.A.,name_similarity,0.5185,review_required
+BRGE8,ALFA CONSORC,22357,ALLOS S.A.,name_similarity,0.5,review_required
+BRIV3,ALFA INVEST,21490,ALUPAR INVESTIMENTO S/A,name_similarity,0.6429,review_required
+BRIV3,ALFA INVEST,1384,BCO ALFA DE INVESTIMENTO S.A.,name_similarity,0.6061,review_required
+BRIV3,ALFA INVEST,80225,ALMACENES ÉXITO S.A.,name_similarity,0.5833,review_required
+BRIV4,ALFA INVEST,21490,ALUPAR INVESTIMENTO S/A,name_similarity,0.6429,review_required
+BRIV4,ALFA INVEST,1384,BCO ALFA DE INVESTIMENTO S.A.,name_similarity,0.6061,review_required
+BRIV4,ALFA INVEST,80225,ALMACENES ÉXITO S.A.,name_similarity,0.5833,review_required
+BRSR3,BANRISUL,21130,TRISUL S.A.,name_similarity,0.7143,review_required
+BRSR3,BANRISUL,21466,BANCO RCI BRASIL S.A.,name_similarity,0.6364,review_required
+BRSR3,BANRISUL,27480,AXIA ENERGIA SUL S.A.,name_similarity,0.6364,review_required
+BRSR5,BANRISUL,21130,TRISUL S.A.,name_similarity,0.7143,review_required
+BRSR5,BANRISUL,21466,BANCO RCI BRASIL S.A.,name_similarity,0.6364,review_required
+BRSR5,BANRISUL,27480,AXIA ENERGIA SUL S.A.,name_similarity,0.6364,review_required
+BRSR6,BANRISUL,21130,TRISUL S.A.,name_similarity,0.7143,review_required
+BRSR6,BANRISUL,21466,BANCO RCI BRASIL S.A.,name_similarity,0.6364,review_required
+BRSR6,BANRISUL,27480,AXIA ENERGIA SUL S.A.,name_similarity,0.6364,review_required
+BTOW3,B2W DIGITAL,20044,CSU DIGITAL S.A.,name_similarity,0.7,review_required
+BTOW3,B2W DIGITAL,16705,YBYRÁ CAPITAL S.A.,name_similarity,0.4545,review_required
+BTOW3,B2W DIGITAL,21202,VIX LOGÍSTICA S.A.,name_similarity,0.4545,review_required
+BTOW9,B2W DIGITAL,20044,CSU DIGITAL S.A.,name_similarity,0.7,review_required
+BTOW9,B2W DIGITAL,16705,YBYRÁ CAPITAL S.A.,name_similarity,0.4545,review_required
+BTOW9,B2W DIGITAL,21202,VIX LOGÍSTICA S.A.,name_similarity,0.4545,review_required
+BTTL3,BATTISTELLA,27430,ALUBAR METAIS E CABOS S.A.,name_similarity,0.4828,review_required
+BTTL3,BATTISTELLA,26646,CANTU STORE S.A.,name_similarity,0.4762,review_required
+BTTL3,BATTISTELLA,24406,BANCO INTER S.A.,name_similarity,0.4762,review_required
+CALI3,CONST A LIND,21148,CONSTRUTORA TENDA S.A.,name_similarity,0.56,review_required
+CALI3,CONST A LIND,23620,CBO HOLDING S.A.,name_similarity,0.5263,review_required
+CALI3,CONST A LIND,26077,ECONOMATICA S.A.,name_similarity,0.5,review_required
+CALI4,CONST A LIND,21148,CONSTRUTORA TENDA S.A.,name_similarity,0.56,review_required
+CALI4,CONST A LIND,23620,CBO HOLDING S.A.,name_similarity,0.5263,review_required
+CALI4,CONST A LIND,26077,ECONOMATICA S.A.,name_similarity,0.5,review_required
+CARD3,CSU CARDSYST,11762,VULCABRAS S.A.,name_similarity,0.5,review_required
+CARD3,CSU CARDSYST,23965,CINESYSTEM S.A.,name_similarity,0.4762,review_required
+CARD3,CSU CARDSYST,4146,KARSTEN S.A.,name_similarity,0.4444,review_required
+CASN3,CASAN,19836,COSAN S.A.,name_similarity,0.8,review_required
+CASN3,CASAN,4448,COBRASMA S.A.,name_similarity,0.6154,review_required
+CASN3,CASAN,26093,CLEAR SALE S.A.,name_similarity,0.5714,review_required
+CASN4,CASAN,19836,COSAN S.A.,name_similarity,0.8,review_required
+CASN4,CASAN,4448,COBRASMA S.A.,name_similarity,0.6154,review_required
+CASN4,CASAN,26093,CLEAR SALE S.A.,name_similarity,0.5714,review_required
+CBAV3,CBA,4448,COBRASMA S.A.,name_similarity,0.5455,review_required
+CBAV3,CBA,11762,VULCABRAS S.A.,name_similarity,0.5,review_required
+CBAV3,CBA,19836,COSAN S.A.,name_similarity,0.5,review_required
+CBAV9,CBA,4448,COBRASMA S.A.,name_similarity,0.5455,review_required
+CBAV9,CBA,11762,VULCABRAS S.A.,name_similarity,0.5,review_required
+CBAV9,CBA,19836,COSAN S.A.,name_similarity,0.5,review_required
+CBEE3,AMPLA ENERG,18660,CPFL ENERGIA S.A.,name_similarity,0.6667,review_required
+CBEE3,AMPLA ENERG,2437,AXIA ENERGIA S.A.,name_similarity,0.6667,review_required
+CBEE3,AMPLA ENERG,25291,BRAVA ENERGIA S.A.,name_similarity,0.6364,review_required
+CCPR3,CYRE COM-CCP,26077,ECONOMATICA S.A.,name_similarity,0.4762,review_required
+CCPR3,CYRE COM-CCP,23531,CLARO TELECOM PARTICIPAÇÕES S.A.,name_similarity,0.4571,review_required
+CCPR3,CYRE COM-CCP,21032,ALGAR TELECOM S/A,name_similarity,0.4545,review_required
+CCRO3,CCR SA,26077,TC S.A.,name_similarity,0.4,review_required
+CCRO3,CCR SA,2100,CAMBUCI S.A.,name_similarity,0.4,review_required
+CCRO3,CCR SA,26280,COMERC ENERGIA S.A.,name_similarity,0.375,review_required
+CEAB3,CEA MODAS,24848,C&A MODAS S.A.,name_similarity,0.8571,review_required
+CEAB3,CEA MODAS,25755,BANCO MODAL S.A.,name_similarity,0.5556,review_required
+CEAB3,CEA MODAS,25011,GRUPO DE MODA SOMA S.A.,name_similarity,0.5217,review_required
+CEBR3,CEB,26077,TC S.A.,name_similarity,0.4,review_required
+CEBR3,CEB,21156,J. MACEDO S.A.,name_similarity,0.4,review_required
+CEBR3,CEB,20087,EMBRAER S.A.,name_similarity,0.4,review_required
+CEBR5,CEB,26077,TC S.A.,name_similarity,0.4,review_required
+CEBR5,CEB,21156,J. MACEDO S.A.,name_similarity,0.4,review_required
+CEBR5,CEB,20087,EMBRAER S.A.,name_similarity,0.4,review_required
+CEBR6,CEB,26077,TC S.A.,name_similarity,0.4,review_required
+CEBR6,CEB,21156,J. MACEDO S.A.,name_similarity,0.4,review_required
+CEBR6,CEB,20087,EMBRAER S.A.,name_similarity,0.4,review_required
+CEEB3,COELBA,4448,COBRASMA S.A.,name_similarity,0.5714,review_required
+CEEB3,COELBA,19836,COSAN S.A.,name_similarity,0.5455,review_required
+CEEB3,COELBA,25542,CVLB BRASIL S.A,name_similarity,0.5,review_required
+CEEB5,COELBA,4448,COBRASMA S.A.,name_similarity,0.5714,review_required
+CEEB5,COELBA,19836,COSAN S.A.,name_similarity,0.5455,review_required
+CEEB5,COELBA,25542,CVLB BRASIL S.A,name_similarity,0.5,review_required
+CEED3,CEEE-D,21156,J. MACEDO S.A.,name_similarity,0.5,review_required
+CEED3,CEEE-D,19615,GRENDENE S.A.,name_similarity,0.4615,review_required
+CEED3,CEEE-D,26093,CLEAR SALE S.A.,name_similarity,0.4286,review_required
+CEED4,CEEE-D,21156,J. MACEDO S.A.,name_similarity,0.5,review_required
+CEED4,CEEE-D,19615,GRENDENE S.A.,name_similarity,0.4615,review_required
+CEED4,CEEE-D,26093,CLEAR SALE S.A.,name_similarity,0.4286,review_required
+CEGR3,CEG,5410,WEG S.A.,name_similarity,0.6667,review_required
+CEGR3,CEG,14761,CIA HERING,name_similarity,0.4444,review_required
+CEGR3,CEG,18660,CPFL ENERGIA S.A.,name_similarity,0.4286,review_required
+CEPE3,CELPE,26093,CLEAR SALE S.A.,name_similarity,0.5714,review_required
+CEPE3,CELPE,12823,ALIPERTI S.A.,name_similarity,0.4615,review_required
+CEPE3,CELPE,26506,LUPO S.A.,name_similarity,0.4444,review_required
+CEPE5,CELPE,26093,CLEAR SALE S.A.,name_similarity,0.5714,review_required
+CEPE5,CELPE,12823,ALIPERTI S.A.,name_similarity,0.4615,review_required
+CEPE5,CELPE,26506,LUPO S.A.,name_similarity,0.4444,review_required
+CEPE6,CELPE,26093,CLEAR SALE S.A.,name_similarity,0.5714,review_required
+CEPE6,CELPE,12823,ALIPERTI S.A.,name_similarity,0.4615,review_required
+CEPE6,CELPE,26506,LUPO S.A.,name_similarity,0.4444,review_required
+CESP3,CESP,26026,DESKTOP S.A.,name_similarity,0.5455,review_required
+CESP3,CESP,26093,CLEAR SALE S.A.,name_similarity,0.4615,review_required
+CESP3,CESP,18724,BRADESPAR S.A.,name_similarity,0.4615,review_required
+CESP5,CESP,26026,DESKTOP S.A.,name_similarity,0.5455,review_required
+CESP5,CESP,26093,CLEAR SALE S.A.,name_similarity,0.4615,review_required
+CESP5,CESP,18724,BRADESPAR S.A.,name_similarity,0.4615,review_required
+CESP6,CESP,26026,DESKTOP S.A.,name_similarity,0.5455,review_required
+CESP6,CESP,26093,CLEAR SALE S.A.,name_similarity,0.4615,review_required
+CESP6,CESP,18724,BRADESPAR S.A.,name_similarity,0.4615,review_required
+CGAS3,COMGAS,24848,C&A MODAS S.A.,name_similarity,0.6667,review_required
+CGAS3,COMGAS,4448,COBRASMA S.A.,name_similarity,0.5714,review_required
+CGAS3,COMGAS,24600,BANCO BMG S/A,name_similarity,0.5714,review_required
+CGAS5,COMGAS,24848,C&A MODAS S.A.,name_similarity,0.6667,review_required
+CGAS5,COMGAS,4448,COBRASMA S.A.,name_similarity,0.5714,review_required
+CGAS5,COMGAS,24600,BANCO BMG S/A,name_similarity,0.5714,review_required
+CLSC3,CELESC,26093,CLEAR SALE S.A.,name_similarity,0.5333,review_required
+CLSC3,CELESC,27243,CLI SUL S.A.,name_similarity,0.5,review_required
+CLSC3,CELESC,27383,LETS RENT A CAR S/A,name_similarity,0.4706,review_required
+CLSC4,CELESC,26093,CLEAR SALE S.A.,name_similarity,0.5333,review_required
+CLSC4,CELESC,27243,CLI SUL S.A.,name_similarity,0.5,review_required
+CLSC4,CELESC,27383,LETS RENT A CAR S/A,name_similarity,0.4706,review_required
+CMIG3,CEMIG,14761,CIA HERING,name_similarity,0.5455,ambiguous
+CMIG3,CEMIG,5410,WEG S.A.,name_similarity,0.5,ambiguous
+CMIG3,CEMIG,2100,CAMBUCI S.A.,name_similarity,0.5,ambiguous
+CMIG4,CEMIG,14761,CIA HERING,name_similarity,0.5455,ambiguous
+CMIG4,CEMIG,5410,WEG S.A.,name_similarity,0.5,ambiguous
+CMIG4,CEMIG,2100,CAMBUCI S.A.,name_similarity,0.5,ambiguous
+CNTO3,CENTAURO,26646,CANTU STORE S.A.,name_similarity,0.5556,review_required
+CNTO3,CENTAURO,20354,TERRA SANTA AGRO S.A.,name_similarity,0.5455,review_required
+CNTO3,CENTAURO,27383,LETS RENT A CAR S/A,name_similarity,0.5263,review_required
+COCE3,COELCE,26093,CLEAR SALE S.A.,name_similarity,0.5333,review_required
+COCE3,COELCE,26280,COMERC ENERGIA S.A.,name_similarity,0.5263,review_required
+COCE3,COELCE,17973,COGNA EDUCAÇÃO S.A.,name_similarity,0.4211,review_required
+COCE5,COELCE,26093,CLEAR SALE S.A.,name_similarity,0.5333,review_required
+COCE5,COELCE,26280,COMERC ENERGIA S.A.,name_similarity,0.5263,review_required
+COCE5,COELCE,17973,COGNA EDUCAÇÃO S.A.,name_similarity,0.4211,review_required
+COGN3,COGNA ON,17973,COGNA EDUCAÇÃO S.A.,name_similarity,0.6,review_required
+COGN3,COGNA ON,1350,BANCO NACIONAL S.A.,name_similarity,0.6,review_required
+COGN3,COGNA ON,26573,TROCAFONE S.A.,name_similarity,0.5,review_required
+CORR4,COR RIBEIRO,25445,MPM CORPÓREOS S.A.,name_similarity,0.5455,review_required
+CORR4,COR RIBEIRO,21466,BANCO RCI BRASIL S.A.,name_similarity,0.5,review_required
+CORR4,COR RIBEIRO,4863,CORREA RIBEIRO S.A. COMERCIO E INDUSTRIA,name_similarity,0.4878,review_required
+CPLE11,COPEL,8451,MARCOPOLO S.A.,name_similarity,0.5714,ambiguous
+CPLE11,COPEL,20567,BCO PINE S.A,name_similarity,0.5714,ambiguous
+CPLE11,COPEL,25445,MPM CORPÓREOS S.A.,name_similarity,0.4706,ambiguous
+CPLE3,COPEL,8451,MARCOPOLO S.A.,name_similarity,0.5714,ambiguous
+CPLE3,COPEL,20567,BCO PINE S.A,name_similarity,0.5714,ambiguous
+CPLE3,COPEL,25445,MPM CORPÓREOS S.A.,name_similarity,0.4706,ambiguous
+CPLE5,COPEL,8451,MARCOPOLO S.A.,name_similarity,0.5714,ambiguous
+CPLE5,COPEL,20567,BCO PINE S.A,name_similarity,0.5714,ambiguous
+CPLE5,COPEL,25445,MPM CORPÓREOS S.A.,name_similarity,0.4706,ambiguous
+CPLE6,COPEL,8451,MARCOPOLO S.A.,name_similarity,0.5714,ambiguous
+CPLE6,COPEL,20567,BCO PINE S.A,name_similarity,0.5714,ambiguous
+CPLE6,COPEL,25445,MPM CORPÓREOS S.A.,name_similarity,0.4706,ambiguous
+CPRE3,CPFL RENOVAV,20540,CPFL ENERGIAS RENOVÁVEIS S.A.,name_similarity,0.6667,review_required
+CPRE3,CPFL RENOVAV,18660,CPFL ENERGIA S.A.,name_similarity,0.6364,review_required
+CPRE3,CPFL RENOVAV,3204,CPFL TRANSMISSÃO S.A.,name_similarity,0.5385,review_required
+CRDE3,CR2,26077,TC S.A.,name_similarity,0.4,review_required
+CRDE3,CR2,12572,RECRUSUL S.A.,name_similarity,0.3636,review_required
+CRDE3,CR2,4448,COBRASMA S.A.,name_similarity,0.3636,review_required
+CRFB3,CARREFOUR BR,25445,MPM CORPÓREOS S.A.,name_similarity,0.4348,review_required
+CRFB3,CARREFOUR BR,4448,COBRASMA S.A.,name_similarity,0.4211,review_required
+CRFB3,CARREFOUR BR,11762,VULCABRAS S.A.,name_similarity,0.4,review_required
+CRIV3,ALFA FINANC,20729,PARANA BCO S.A.,name_similarity,0.5714,review_required
+CRIV3,ALFA FINANC,16101,GAFISA S.A.,name_similarity,0.5,review_required
+CRIV3,ALFA FINANC,26590,AURA ALMAS MINERAÇÃO S.A.,name_similarity,0.5,review_required
+CRIV4,ALFA FINANC,20729,PARANA BCO S.A.,name_similarity,0.5714,review_required
+CRIV4,ALFA FINANC,16101,GAFISA S.A.,name_similarity,0.5,review_required
+CRIV4,ALFA FINANC,26590,AURA ALMAS MINERAÇÃO S.A.,name_similarity,0.5,review_required
+CRPG3,CRISTAL,26093,CLEAR SALE S.A.,name_similarity,0.625,review_required
+CRPG3,CRISTAL,21130,TRISUL S.A.,name_similarity,0.6154,review_required
+CRPG3,CRISTAL,27243,CLI SUL S.A.,name_similarity,0.6154,review_required
+CRPG5,CRISTAL,26093,CLEAR SALE S.A.,name_similarity,0.625,review_required
+CRPG5,CRISTAL,21130,TRISUL S.A.,name_similarity,0.6154,review_required
+CRPG5,CRISTAL,27243,CLI SUL S.A.,name_similarity,0.6154,review_required
+CRPG6,CRISTAL,26093,CLEAR SALE S.A.,name_similarity,0.625,review_required
+CRPG6,CRISTAL,21130,TRISUL S.A.,name_similarity,0.6154,review_required
+CRPG6,CRISTAL,27243,CLI SUL S.A.,name_similarity,0.6154,review_required
+CSAB3,SEG AL BAHIA,3115,CIA SEGUROS ALIANCA DA BAHIA,name_similarity,0.6452,review_required
+CSAB3,SEG AL BAHIA,6505,GRUPO CASAS BAHIA S.A.,name_similarity,0.56,review_required
+CSAB3,SEG AL BAHIA,26468,HOSPITAL ANCHIETA S.A.,name_similarity,0.5385,review_required
+CSAB4,SEG AL BAHIA,3115,CIA SEGUROS ALIANCA DA BAHIA,name_similarity,0.6452,review_required
+CSAB4,SEG AL BAHIA,6505,GRUPO CASAS BAHIA S.A.,name_similarity,0.56,review_required
+CSAB4,SEG AL BAHIA,26468,HOSPITAL ANCHIETA S.A.,name_similarity,0.5385,review_required
+CSED3,CRUZEIRO EDU,25526,CRUZEIRO DO SUL EDUCACIONAL S.A.,name_similarity,0.6286,review_required
+CSED3,CRUZEIRO EDU,4863,CORREA RIBEIRO S.A. COMERCIO E INDUSTRIA,name_similarity,0.4286,review_required
+CSED3,CRUZEIRO EDU,12572,RECRUSUL S.A.,name_similarity,0.4211,review_required
+CSNA3,SID NACIONAL,4030,CIA SIDERURGICA NACIONAL,name_similarity,0.7333,review_required
+CSNA3,SID NACIONAL,23221,SER EDUCACIONAL S.A.,name_similarity,0.72,review_required
+CSNA3,SID NACIONAL,1350,BANCO NACIONAL S.A.,name_similarity,0.6667,review_required
+CSRN3,COSERN,19836,COSAN S.A.,name_similarity,0.7273,review_required
+CSRN3,COSERN,26280,COMERC ENERGIA S.A.,name_similarity,0.5263,review_required
+CSRN3,COSERN,5207,DOHLER S.A.,name_similarity,0.5,review_required
+CSRN5,COSERN,19836,COSAN S.A.,name_similarity,0.7273,review_required
+CSRN5,COSERN,26280,COMERC ENERGIA S.A.,name_similarity,0.5263,review_required
+CSRN5,COSERN,5207,DOHLER S.A.,name_similarity,0.5,review_required
+CSRN6,COSERN,19836,COSAN S.A.,name_similarity,0.7273,review_required
+CSRN6,COSERN,26280,COMERC ENERGIA S.A.,name_similarity,0.5263,review_required
+CSRN6,COSERN,5207,DOHLER S.A.,name_similarity,0.5,review_required
+CURY3,CURY S/A,21881,FLEURY S.A.,name_similarity,0.6,review_required
+CURY3,CURY S/A,6343,TUPY S.A.,name_similarity,0.5,review_required
+CURY3,CURY S/A,26646,CANTU STORE S.A.,name_similarity,0.4286,review_required
+CYRE3,CYRELA REALT,26093,CLEAR SALE S.A.,name_similarity,0.6,review_required
+CYRE3,CYRELA REALT,14460,CYRELA BRAZIL REALTY S.A.EMPREEND E PART,name_similarity,0.5238,review_required
+CYRE3,CYRELA REALT,10456,ALPARGATAS S.A.,name_similarity,0.4762,review_required
+DASA3,DASA,7617,ITAÚSA S.A.,name_similarity,0.6,review_required
+DASA3,DASA,16101,GAFISA S.A.,name_similarity,0.6,review_required
+DASA3,DASA,24848,C&A MODAS S.A.,name_similarity,0.6,review_required
+DMFN3,DMFINANCEIRA,26972,CREDGRID SERVIÇOS FINANCEIROS S.A.,name_similarity,0.5128,review_required
+DMFN3,DMFINANCEIRA,21520,MULTINER S/A,name_similarity,0.5,review_required
+DMFN3,DMFINANCEIRA,21350,DIRECIONAL ENGENHARIA S.A.,name_similarity,0.5,review_required
+DMVF3,D1000VFARMA,25046,D1000 VAREJO FARMA PARTICIPAÇÕES S.A.,name_similarity,0.55,review_required
+DMVF3,D1000VFARMA,11762,VULCABRAS S.A.,name_similarity,0.4,review_required
+DMVF3,D1000VFARMA,27634,B100 S.A.,name_similarity,0.4,review_required
+DTEX3,DURATEX,20060,LUPATECH S.A,name_similarity,0.5333,review_required
+DTEX3,DURATEX,8672,IGUATEMI S.A.,name_similarity,0.5333,review_required
+DTEX3,DURATEX,21091,DEXCO S.A.,name_similarity,0.5,review_required
+ECOR3,ECORODOVIAS,26328,MONTE RODOVIAS S.A.,name_similarity,0.75,ambiguous
+ECOR3,ECORODOVIAS,24848,C&A MODAS S.A.,name_similarity,0.5882,ambiguous
+ECOR3,ECORODOVIAS,25844,TEGRA INCORPORADORA S.A.,name_similarity,0.5517,ambiguous
+EEEL3,CEEE-T,80225,ALMACENES ÉXITO S.A.,name_similarity,0.5263,review_required
+EEEL3,CEEE-T,19615,GRENDENE S.A.,name_similarity,0.4615,review_required
+EEEL3,CEEE-T,24813,LOCALIZA FLEET S.A.,name_similarity,0.4444,review_required
+EEEL4,CEEE-T,80225,ALMACENES ÉXITO S.A.,name_similarity,0.5263,review_required
+EEEL4,CEEE-T,19615,GRENDENE S.A.,name_similarity,0.4615,review_required
+EEEL4,CEEE-T,24813,LOCALIZA FLEET S.A.,name_similarity,0.4444,review_required
+EKTR3,ELEKTRO,26891,ELETRORIVER S.A.,name_similarity,0.6667,review_required
+EKTR3,ELEKTRO,25569,ELETROMIDIA S.A.,name_similarity,0.6667,review_required
+EKTR3,ELEKTRO,26026,DESKTOP S.A.,name_similarity,0.5714,review_required
+EKTR4,ELEKTRO,26891,ELETRORIVER S.A.,name_similarity,0.6667,review_required
+EKTR4,ELEKTRO,25569,ELETROMIDIA S.A.,name_similarity,0.6667,review_required
+EKTR4,ELEKTRO,26026,DESKTOP S.A.,name_similarity,0.5714,review_required
+ELEK3,ELEKEIROZ,25232,MÉLIUZ S.A.,name_similarity,0.5333,review_required
+ELEK3,ELEKEIROZ,7870,KEPLER WEBER S.A.,name_similarity,0.5,review_required
+ELEK3,ELEKEIROZ,26891,ELETRORIVER S.A.,name_similarity,0.5,review_required
+ELEK4,ELEKEIROZ,25232,MÉLIUZ S.A.,name_similarity,0.5333,review_required
+ELEK4,ELEKEIROZ,7870,KEPLER WEBER S.A.,name_similarity,0.5,review_required
+ELEK4,ELEKEIROZ,26891,ELETRORIVER S.A.,name_similarity,0.5,review_required
+EMAE3,EMAE,20087,EMBRAER S.A.,name_similarity,0.7273,review_required
+EMAE3,EMAE,21156,J. MACEDO S.A.,name_similarity,0.5455,review_required
+EMAE3,EMAE,26093,CLEAR SALE S.A.,name_similarity,0.4615,review_required
+EMAE4,EMAE,20087,EMBRAER S.A.,name_similarity,0.7273,review_required
+EMAE4,EMAE,21156,J. MACEDO S.A.,name_similarity,0.5455,review_required
+EMAE4,EMAE,26093,CLEAR SALE S.A.,name_similarity,0.4615,review_required
+ENBR3,ENERGIAS BR,15253,ENERGISA S.A.,name_similarity,0.7778,review_required
+ENBR3,ENERGIAS BR,15539,NEOENERGIA S.A.,name_similarity,0.7,review_required
+ENBR3,ENERGIAS BR,18376,ISA ENERGIA BRASIL,name_similarity,0.6923,review_required
+ENMA3B,CEMAR,20087,EMBRAER S.A.,name_similarity,0.6667,review_required
+ENMA3B,CEMAR,26093,CLEAR SALE S.A.,name_similarity,0.5714,review_required
+ENMA3B,CEMAR,25003,SIMPAR S.A.,name_similarity,0.5455,review_required
+EQMA3B,EQTLMARANHAO,8893,MONTEIRO ARANHA S.A.,name_similarity,0.5385,review_required
+EQMA3B,EQTLMARANHAO,20516,SAO MARTINHO S.A.,name_similarity,0.5217,review_required
+EQMA3B,EQTLMARANHAO,20729,PARANA BCO S.A.,name_similarity,0.5217,review_required
+EQPA3,EQTL PARA,10456,ALPARGATAS S.A.,name_similarity,0.5556,review_required
+EQPA3,EQTL PARA,26131,ENTALPIA PARTICIPAÇÕES S.A.,name_similarity,0.4828,review_required
+EQPA3,EQTL PARA,8656,METALURGICA GERDAU S.A.,name_similarity,0.48,review_required
+EQPA5,EQTL PARA,10456,ALPARGATAS S.A.,name_similarity,0.5556,review_required
+EQPA5,EQTL PARA,26131,ENTALPIA PARTICIPAÇÕES S.A.,name_similarity,0.4828,review_required
+EQPA5,EQTL PARA,8656,METALURGICA GERDAU S.A.,name_similarity,0.48,review_required
+EQPA6,EQTL PARA,10456,ALPARGATAS S.A.,name_similarity,0.5556,review_required
+EQPA6,EQTL PARA,26131,ENTALPIA PARTICIPAÇÕES S.A.,name_similarity,0.4828,review_required
+EQPA6,EQTL PARA,8656,METALURGICA GERDAU S.A.,name_similarity,0.48,review_required
+EQPA7,EQTL PARA,10456,ALPARGATAS S.A.,name_similarity,0.5556,review_required
+EQPA7,EQTL PARA,26131,ENTALPIA PARTICIPAÇÕES S.A.,name_similarity,0.4828,review_required
+EQPA7,EQTL PARA,8656,METALURGICA GERDAU S.A.,name_similarity,0.48,review_required
+ESPA3,ESPACOLASER,20745,SLC AGRICOLA S.A.,name_similarity,0.5455,review_required
+ESPA3,ESPACOLASER,26034,GRUPO MULTILASER S.A.,name_similarity,0.5385,review_required
+ESPA3,ESPACOLASER,25682,CM HOSPITALAR S.A,name_similarity,0.5217,review_required
+ESPA9,ESPACOLASER,20745,SLC AGRICOLA S.A.,name_similarity,0.5455,review_required
+ESPA9,ESPACOLASER,26034,GRUPO MULTILASER S.A.,name_similarity,0.5385,review_required
+ESPA9,ESPACOLASER,25682,CM HOSPITALAR S.A,name_similarity,0.5217,review_required
+EVEN3,EVEN,27650,REVEE S.A.,name_similarity,0.6667,review_required
+EVEN3,EVEN,5762,ETERNIT S.A.,name_similarity,0.5455,review_required
+EVEN3,EVEN,26409,VERO S.A.,name_similarity,0.5,review_required
+FIEI3,FICA,16101,GAFISA S.A.,name_similarity,0.6,review_required
+FIEI3,FICA,25666,LG INFORMÁTICA S.A.,name_similarity,0.4706,review_required
+FIEI3,FICA,19836,COSAN S.A.,name_similarity,0.4444,review_required
+FIGE3,INVEST BEMGE,23965,CINESYSTEM S.A.,name_similarity,0.6667,review_required
+FIGE3,INVEST BEMGE,21440,VESTE S.A. ESTILO,name_similarity,0.5455,review_required
+FIGE3,INVEST BEMGE,27111,XP INVESTIMENTOS S.A.,name_similarity,0.5385,review_required
+FNCN3,FINANSINOS,22560,INBRANDS S.A.,name_similarity,0.5556,review_required
+FNCN3,FINANSINOS,26247,WILSON SONS S.A.,name_similarity,0.5,review_required
+FNCN3,FINANSINOS,3204,CPFL TRANSMISSÃO S.A.,name_similarity,0.48,review_required
+GEPA3,GER PARANAP,8893,MONTEIRO ARANHA S.A.,name_similarity,0.5833,review_required
+GEPA3,GER PARANAP,20729,PARANA BCO S.A.,name_similarity,0.5714,review_required
+GEPA3,GER PARANAP,20354,TERRA SANTA AGRO S.A.,name_similarity,0.5,review_required
+GEPA4,GER PARANAP,8893,MONTEIRO ARANHA S.A.,name_similarity,0.5833,review_required
+GEPA4,GER PARANAP,20729,PARANA BCO S.A.,name_similarity,0.5714,review_required
+GEPA4,GER PARANAP,20354,TERRA SANTA AGRO S.A.,name_similarity,0.5,review_required
+GETT11,GETNET BR,5762,ETERNIT S.A.,name_similarity,0.5333,review_required
+GETT11,GETNET BR,27383,LETS RENT A CAR S/A,name_similarity,0.5263,review_required
+GETT11,GETNET BR,21520,MULTINER S/A,name_similarity,0.5,review_required
+GETT3,GETNET BR,5762,ETERNIT S.A.,name_similarity,0.5333,review_required
+GETT3,GETNET BR,27383,LETS RENT A CAR S/A,name_similarity,0.5263,review_required
+GETT3,GETNET BR,21520,MULTINER S/A,name_similarity,0.5,review_required
+GETT4,GETNET BR,5762,ETERNIT S.A.,name_similarity,0.5333,review_required
+GETT4,GETNET BR,27383,LETS RENT A CAR S/A,name_similarity,0.5263,review_required
+GETT4,GETNET BR,21520,MULTINER S/A,name_similarity,0.5,review_required
+GGPS3,GPS,24694,GRUPO SBF S.A.,name_similarity,0.5455,review_required
+GGPS3,GPS,16101,GAFISA S.A.,name_similarity,0.4444,review_required
+GGPS3,GPS,25186,GRUPO MATEUS S.A.,name_similarity,0.4286,review_required
+GOLL10,GOL,23957,SUGOI S.A.,name_similarity,0.5,review_required
+GOLL10,GOL,26034,GRUPO MULTI S.A.,name_similarity,0.4615,review_required
+GOLL10,GOL,5207,DOHLER S.A.,name_similarity,0.4444,review_required
+GOLL4,GOL,23957,SUGOI S.A.,name_similarity,0.5,review_required
+GOLL4,GOL,26034,GRUPO MULTI S.A.,name_similarity,0.4615,review_required
+GOLL4,GOL,5207,DOHLER S.A.,name_similarity,0.4444,review_required
+GOLL54,GOL,23957,SUGOI S.A.,name_similarity,0.5,review_required
+GOLL54,GOL,26034,GRUPO MULTI S.A.,name_similarity,0.4615,review_required
+GOLL54,GOL,5207,DOHLER S.A.,name_similarity,0.4444,review_required
+GPCP3,GPC PART,10456,ALPARGATAS S.A.,name_similarity,0.4706,review_required
+GPCP3,GPC PART,25003,SIMPAR S.A.,name_similarity,0.4615,review_required
+GPCP3,GPC PART,24546,PRÁTICA PRODUTOS S.A.,name_similarity,0.4545,review_required
+GPCP4,GPC PART,10456,ALPARGATAS S.A.,name_similarity,0.4706,review_required
+GPCP4,GPC PART,25003,SIMPAR S.A.,name_similarity,0.4615,review_required
+GPCP4,GPC PART,24546,PRÁTICA PRODUTOS S.A.,name_similarity,0.4545,review_required
+HAGA3,HAGA S/A,10456,ALPARGATAS S.A.,name_similarity,0.4286,review_required
+HAGA3,HAGA S/A,20745,SLC AGRICOLA S.A.,name_similarity,0.4,review_required
+HAGA3,HAGA S/A,7617,ITAÚSA S.A.,name_similarity,0.4,review_required
+HAGA4,HAGA S/A,10456,ALPARGATAS S.A.,name_similarity,0.4286,review_required
+HAGA4,HAGA S/A,20745,SLC AGRICOLA S.A.,name_similarity,0.4,review_required
+HAGA4,HAGA S/A,7617,ITAÚSA S.A.,name_similarity,0.4,review_required
+HETA3,HERCULES,12572,RECRUSUL S.A.,name_similarity,0.5,review_required
+HETA3,HERCULES,13439,METALURGICA RIOSULENSE S.A.,name_similarity,0.4828,review_required
+HETA3,HERCULES,26093,CLEAR SALE S.A.,name_similarity,0.4706,review_required
+HETA4,HERCULES,12572,RECRUSUL S.A.,name_similarity,0.5,review_required
+HETA4,HERCULES,13439,METALURGICA RIOSULENSE S.A.,name_similarity,0.4828,review_required
+HETA4,HERCULES,26093,CLEAR SALE S.A.,name_similarity,0.4706,review_required
+IDNT3,IDEIASNET,26417,OLIVEIRA TRUST S.A.,name_similarity,0.5455,review_required
+IDNT3,IDEIASNET,23175,IGUA SANEAMENTO S.A.,name_similarity,0.5217,review_required
+IDNT3,IDEIASNET,26026,DESKTOP S.A.,name_similarity,0.5,review_required
+IDVL3,INDUSVAL,7617,ITAÚSA S.A.,name_similarity,0.5714,review_required
+IDVL3,INDUSVAL,8397,MANGELS INDUSTRIAL S.A.,name_similarity,0.56,review_required
+IDVL3,INDUSVAL,20931,MINERVA S.A.,name_similarity,0.5333,review_required
+IDVL4,INDUSVAL,7617,ITAÚSA S.A.,name_similarity,0.5714,review_required
+IDVL4,INDUSVAL,8397,MANGELS INDUSTRIAL S.A.,name_similarity,0.56,review_required
+IDVL4,INDUSVAL,20931,MINERVA S.A.,name_similarity,0.5333,review_required
+IGBR3,IGB S/A,14761,CIA HERING,name_similarity,0.4444,review_required
+IGBR3,IGB S/A,22560,INBRANDS S.A.,name_similarity,0.3636,review_required
+IGBR3,IGB S/A,8672,IGUATEMI S.A.,name_similarity,0.3636,review_required
+INEP3,INEPAR,25003,SIMPAR S.A.,name_similarity,0.6667,ambiguous
+INEP3,INEPAR,20931,MINERVA S.A.,name_similarity,0.6154,ambiguous
+INEP3,INEPAR,21520,MULTINER S/A,name_similarity,0.5714,ambiguous
+INEP4,INEPAR,25003,SIMPAR S.A.,name_similarity,0.6667,ambiguous
+INEP4,INEPAR,20931,MINERVA S.A.,name_similarity,0.6154,ambiguous
+INEP4,INEPAR,21520,MULTINER S/A,name_similarity,0.5714,ambiguous
+JBDU3,B TECH EQI,12319,BLUE TECH SOLUTIONS EQI S.A.,name_similarity,0.5714,review_required
+JBDU3,B TECH EQI,20435,TECNISA S.A.,name_similarity,0.5333,review_required
+JBDU3,B TECH EQI,22519,TECHNOS S.A.,name_similarity,0.5333,review_required
+JBDU4,B TECH EQI,12319,BLUE TECH SOLUTIONS EQI S.A.,name_similarity,0.5714,review_required
+JBDU4,B TECH EQI,20435,TECNISA S.A.,name_similarity,0.5333,review_required
+JBDU4,B TECH EQI,22519,TECHNOS S.A.,name_similarity,0.5333,review_required
+JPSA3,JEREISSATI,15253,ENERGISA S.A.,name_similarity,0.5556,review_required
+JPSA3,JEREISSATI,21440,VESTE S.A. ESTILO,name_similarity,0.4762,review_required
+JPSA3,JEREISSATI,20435,TECNISA S.A.,name_similarity,0.4706,review_required
+LAND3,TERRASANTAPA,20354,TERRA SANTA AGRO S.A.,name_similarity,0.8462,review_required
+LAND3,TERRASANTAPA,26000,TERRA SANTA PROPRIEDADES AGRÍCOLAS S.A.,name_similarity,0.5581,review_required
+LAND3,TERRASANTAPA,5762,ETERNIT S.A.,name_similarity,0.5263,review_required
+LCAM3,LOCAMERICA,21121,SUL AMERICA S.A.,name_similarity,0.8,review_required
+LCAM3,LOCAMERICA,8087,LOJAS AMERICANAS S.A.,name_similarity,0.72,review_required
+LCAM3,LOCAMERICA,20745,SLC AGRICOLA S.A.,name_similarity,0.6667,review_required
+LIGT3,LIGHT S/A,23000,LIGHT ENERGIA S.A.,name_similarity,0.5882,ambiguous
+LIGT3,LIGHT S/A,8672,IGUATEMI S.A.,name_similarity,0.4615,ambiguous
+LIGT3,LIGHT S/A,12823,ALIPERTI S.A.,name_similarity,0.4615,ambiguous
+LIPR3,ELETROPAR,26891,ELETRORIVER S.A.,name_similarity,0.7,review_required
+LIPR3,ELETROPAR,25569,ELETROMIDIA S.A.,name_similarity,0.7,review_required
+LIPR3,ELETROPAR,27383,LETS RENT A CAR S/A,name_similarity,0.6,review_required
+LIQO3,LIQ,23035,LINX S.A.,name_similarity,0.5714,review_required
+LIQO3,LIQ,22799,SINQIA S.A.,name_similarity,0.4444,review_required
+LIQO3,LIQ,25232,MÉLIUZ S.A.,name_similarity,0.4444,review_required
+LLIS3,LE LIS BLANC,27243,CLI SUL S.A.,name_similarity,0.5,review_required
+LLIS3,LE LIS BLANC,19739,LOCALIZA RENT A CAR S.A.,name_similarity,0.48,review_required
+LLIS3,LE LIS BLANC,20435,TECNISA S.A.,name_similarity,0.4706,review_required
+LLIS9,LE LIS BLANC,27243,CLI SUL S.A.,name_similarity,0.5,review_required
+LLIS9,LE LIS BLANC,19739,LOCALIZA RENT A CAR S.A.,name_similarity,0.48,review_required
+LLIS9,LE LIS BLANC,20435,TECNISA S.A.,name_similarity,0.4706,review_required
+LOGG3,LOG COM PROP,28010,FGR INCORPORAÇÕES S.A.,name_similarity,0.4615,review_required
+LOGG3,LOG COM PROP,23531,CLARO TELECOM PARTICIPAÇÕES S.A.,name_similarity,0.4571,review_required
+LOGG3,LOG COM PROP,25445,MPM CORPÓREOS S.A.,name_similarity,0.4545,review_required
+LPSB3,LOPES BRASIL,25542,CVLB BRASIL S.A,name_similarity,0.6667,review_required
+LPSB3,LOPES BRASIL,1023,BCO BRASIL S.A.,name_similarity,0.6364,review_required
+LPSB3,LOPES BRASIL,19763,EDP - ENERGIAS DO BRASIL S.A.,name_similarity,0.6,review_required
+LVTC3,WDC NETWORKS,26646,CANTU STORE S.A.,name_similarity,0.4762,review_required
+LVTC3,WDC NETWORKS,22519,TECHNOS S.A.,name_similarity,0.4444,review_required
+LVTC3,WDC NETWORKS,25348,ELFA MEDICAMENTOS S.A.,name_similarity,0.4444,review_required
+MAPT3,CEMEPE,27650,REVEE S.A.,name_similarity,0.5455,review_required
+MAPT3,CEMEPE,20087,EMBRAER S.A.,name_similarity,0.4615,review_required
+MAPT3,CEMEPE,19615,GRENDENE S.A.,name_similarity,0.4286,review_required
+MAPT4,CEMEPE,27650,REVEE S.A.,name_similarity,0.5455,review_required
+MAPT4,CEMEPE,20087,EMBRAER S.A.,name_similarity,0.4615,review_required
+MAPT4,CEMEPE,19615,GRENDENE S.A.,name_similarity,0.4286,review_required
+MBLY3,MOBLY,6211,FRASLE MOBILITY S.A.,name_similarity,0.5263,review_required
+MBLY3,MOBLY,27413,AUTOMOB S.A.,name_similarity,0.5,review_required
+MBLY3,MOBLY,17450,RUMO S.A.,name_similarity,0.4444,review_required
+MEAL3,IMC S/A,24929,TIM S.A.,name_similarity,0.6667,review_required
+MEAL3,IMC S/A,19305,BIOMM S.A.,name_similarity,0.5,review_required
+MEAL3,IMC S/A,25003,SIMPAR S.A.,name_similarity,0.4444,review_required
+MEGA3,OMEGAENERGIA,26280,COMERC ENERGIA S.A.,name_similarity,0.8,review_required
+MEGA3,OMEGAENERGIA,23493,DOMMO ENERGIA S.A.,name_similarity,0.75,review_required
+MEGA3,OMEGAENERGIA,25127,COMPASS GÁS E ENERGIA S.A.,name_similarity,0.7333,review_required
+MEND5,MENDES JR,19615,GRENDENE S.A.,name_similarity,0.5,review_required
+MEND5,MENDES JR,15253,ENERGISA S.A.,name_similarity,0.5,review_required
+MEND5,MENDES JR,23493,DOMMO ENERGIA S.A.,name_similarity,0.5,review_required
+MEND6,MENDES JR,19615,GRENDENE S.A.,name_similarity,0.5,review_required
+MEND6,MENDES JR,15253,ENERGISA S.A.,name_similarity,0.5,review_required
+MEND6,MENDES JR,23493,DOMMO ENERGIA S.A.,name_similarity,0.5,review_required
+MERC3,MERC FINANC,80217,"INTER & CO, INC.",name_similarity,0.6,review_required
+MERC3,MERC FINANC,57886,"INTER & CO, INC.",name_similarity,0.6,review_required
+MERC3,MERC FINANC,26280,COMERC ENERGIA S.A.,name_similarity,0.5217,review_required
+MERC4,MERC FINANC,80217,"INTER & CO, INC.",name_similarity,0.6,review_required
+MERC4,MERC FINANC,57886,"INTER & CO, INC.",name_similarity,0.6,review_required
+MERC4,MERC FINANC,26280,COMERC ENERGIA S.A.,name_similarity,0.5217,review_required
+MGEL4,MANGELS INDL,8397,MANGELS INDUSTRIAL S.A.,name_similarity,0.7857,review_required
+MGEL4,MANGELS INDL,26832,ANEMUS WIND HOLDING S.A.,name_similarity,0.5714,review_required
+MGEL4,MANGELS INDL,22470,MAGAZINE LUIZA S.A.,name_similarity,0.5,review_required
+MGLU3,MAGAZ LUIZA,22470,MAGAZINE LUIZA S.A.,name_similarity,0.8696,review_required
+MGLU3,MAGAZ LUIZA,16101,GAFISA S.A.,name_similarity,0.5,review_required
+MGLU3,MAGAZ LUIZA,22055,MARISA LOJAS S.A.,name_similarity,0.4762,review_required
+MGLU9,MAGAZ LUIZA,22470,MAGAZINE LUIZA S.A.,name_similarity,0.8696,review_required
+MGLU9,MAGAZ LUIZA,16101,GAFISA S.A.,name_similarity,0.5,review_required
+MGLU9,MAGAZ LUIZA,22055,MARISA LOJAS S.A.,name_similarity,0.4762,review_required
+MMAQ3,MINASMAQUINA,80187,AURA MINERALS INC.,name_similarity,0.5185,review_required
+MMAQ3,MINASMAQUINA,26565,HOLDING DO ARAGUAIA S.A.,name_similarity,0.4828,review_required
+MMAQ3,MINASMAQUINA,22470,MAGAZINE LUIZA S.A.,name_similarity,0.48,review_required
+MMAQ4,MINASMAQUINA,80187,AURA MINERALS INC.,name_similarity,0.5185,review_required
+MMAQ4,MINASMAQUINA,26565,HOLDING DO ARAGUAIA S.A.,name_similarity,0.4828,review_required
+MMAQ4,MINASMAQUINA,22470,MAGAZINE LUIZA S.A.,name_similarity,0.48,review_required
+MOAR3,MONT ARANHA,8893,MONTEIRO ARANHA S.A.,name_similarity,0.8333,review_required
+MOAR3,MONT ARANHA,26468,HOSPITAL ANCHIETA S.A.,name_similarity,0.5385,review_required
+MOAR3,MONT ARANHA,21148,CONSTRUTORA TENDA S.A.,name_similarity,0.5385,review_required
+MODL11,MODALMAIS,24848,C&A MODAS S.A.,name_similarity,0.6667,review_required
+MODL11,MODALMAIS,25755,BANCO MODAL S.A.,name_similarity,0.5263,review_required
+MODL11,MODALMAIS,23825,MOVIDA PARTICIPACOES SA,name_similarity,0.5,review_required
+MODL3,MODALMAIS,24848,C&A MODAS S.A.,name_similarity,0.6667,review_required
+MODL3,MODALMAIS,25755,BANCO MODAL S.A.,name_similarity,0.5263,review_required
+MODL3,MODALMAIS,23825,MOVIDA PARTICIPACOES SA,name_similarity,0.5,review_required
+MODL4,MODALMAIS,24848,C&A MODAS S.A.,name_similarity,0.6667,review_required
+MODL4,MODALMAIS,25755,BANCO MODAL S.A.,name_similarity,0.5263,review_required
+MODL4,MODALMAIS,23825,MOVIDA PARTICIPACOES SA,name_similarity,0.5,review_required
+MRVE3,MRV,20931,MINERVA S.A.,name_similarity,0.6,review_required
+MRVE3,MRV,27650,REVEE S.A.,name_similarity,0.5,review_required
+MRVE3,MRV,23264,AMBEV S.A.,name_similarity,0.5,review_required
+MSPA3,MELHOR SP,22519,TECHNOS S.A.,name_similarity,0.5333,review_required
+MSPA3,MELHOR SP,3654,CIA MELHORAMENTOS DE SAO PAULO,name_similarity,0.5161,review_required
+MSPA3,MELHOR SP,22586,MLOG S.A.,name_similarity,0.5,review_required
+MSPA4,MELHOR SP,22519,TECHNOS S.A.,name_similarity,0.5333,review_required
+MSPA4,MELHOR SP,3654,CIA MELHORAMENTOS DE SAO PAULO,name_similarity,0.5161,review_required
+MSPA4,MELHOR SP,22586,MLOG S.A.,name_similarity,0.5,review_required
+MTIG4,METAL IGUACU,25232,MÉLIUZ S.A.,name_similarity,0.5882,review_required
+MTIG4,METAL IGUACU,8656,METALURGICA GERDAU S.A.,name_similarity,0.5714,review_required
+MTIG4,METAL IGUACU,20613,METALFRIO SOLUTIONS S.A.,name_similarity,0.4828,review_required
+MYPK3,IOCHP-MAXION,11932,IOCHPE MAXION S.A.,name_similarity,0.9565,review_required
+MYPK3,IOCHP-MAXION,26573,TROCAFONE S.A.,name_similarity,0.5,review_required
+MYPK3,IOCHP-MAXION,20516,SAO MARTINHO S.A.,name_similarity,0.4545,review_required
+NAFG3,NADIR FIGUEI,25372,SENDAS DISTRIBUIDORA S.A.,name_similarity,0.5333,review_required
+NAFG3,NADIR FIGUEI,8672,IGUATEMI S.A.,name_similarity,0.5263,review_required
+NAFG3,NADIR FIGUEI,21350,DIRECIONAL ENGENHARIA S.A.,name_similarity,0.4516,review_required
+NAFG4,NADIR FIGUEI,25372,SENDAS DISTRIBUIDORA S.A.,name_similarity,0.5333,review_required
+NAFG4,NADIR FIGUEI,8672,IGUATEMI S.A.,name_similarity,0.5263,review_required
+NAFG4,NADIR FIGUEI,21350,DIRECIONAL ENGENHARIA S.A.,name_similarity,0.4516,review_required
+NATU3,NATURA,24783,NATURA &CO HOLDING S.A.,name_similarity,0.5714,ambiguous
+NATU3,NATURA,19550,NATURA COSMÉTICOS S.A.,name_similarity,0.5455,ambiguous
+NATU3,NATURA,7617,ITAÚSA S.A.,name_similarity,0.5,ambiguous
+NINJ3,GETNINJAS,20435,TECNISA S.A.,name_similarity,0.5,review_required
+NINJ3,GETNINJAS,5762,ETERNIT S.A.,name_similarity,0.5,review_required
+NINJ3,GETNINJAS,23000,LIGHT ENERGIA S.A.,name_similarity,0.4762,review_required
+NORD3,NORDON MET,20125,ODONTOPREV S.A.,name_similarity,0.5263,review_required
+NORD3,NORDON MET,27049,ORIZON MEIO AMBIENTE S.A.,name_similarity,0.5185,review_required
+NORD3,NORDON MET,8745,METANOR SA METANOL DO NE,name_similarity,0.5185,review_required
+NTCO3,GRUPO NATURA,25186,GRUPO MATEUS S.A.,name_similarity,0.7273,review_required
+NTCO3,GRUPO NATURA,27820,GRUPO SALTA EDUCAÇÃO S.A.,name_similarity,0.6207,review_required
+NTCO3,GRUPO NATURA,25461,GRUPO TOKY S.A.,name_similarity,0.6,review_required
+NTCO9,GRUPO NATURA,25186,GRUPO MATEUS S.A.,name_similarity,0.7273,review_required
+NTCO9,GRUPO NATURA,27820,GRUPO SALTA EDUCAÇÃO S.A.,name_similarity,0.6207,review_required
+NTCO9,GRUPO NATURA,25461,GRUPO TOKY S.A.,name_similarity,0.6,review_required
+OIBR3,OI,7510,ROMI S.A.,name_similarity,0.6667,review_required
+OIBR3,OI,23957,SUGOI S.A.,name_similarity,0.5714,review_required
+OIBR3,OI,25313,HOUSI S.A.,name_similarity,0.5714,review_required
+OIBR4,OI,7510,ROMI S.A.,name_similarity,0.6667,review_required
+OIBR4,OI,23957,SUGOI S.A.,name_similarity,0.5714,review_required
+OIBR4,OI,25313,HOUSI S.A.,name_similarity,0.5714,review_required
+OMGE3,OMEGA GER,8656,METALURGICA GERDAU S.A.,name_similarity,0.56,review_required
+OMGE3,OMEGA GER,20087,EMBRAER S.A.,name_similarity,0.5333,review_required
+OMGE3,OMEGA GER,23493,DOMMO ENERGIA S.A.,name_similarity,0.5,review_required
+ORVR3,ORIZON,25917,RAÍZEN S.A.,name_similarity,0.6667,ambiguous
+ORVR3,ORIZON,22187,PRIO S.A.,name_similarity,0.6,ambiguous
+ORVR3,ORIZON,23507,OUROFINO S.A.,name_similarity,0.5714,ambiguous
+PARD3,IHPARDINI,24090,INSTITUTO HERMES PARDINI S.A.,name_similarity,0.5806,review_required
+PARD3,IHPARDINI,11932,IOCHPE MAXION S.A.,name_similarity,0.5714,review_required
+PARD3,IHPARDINI,25003,SIMPAR S.A.,name_similarity,0.5333,review_required
+PCAR3,P.ACUCAR-CBD,24546,PRÁTICA PRODUTOS S.A.,name_similarity,0.48,review_required
+PCAR3,P.ACUCAR-CBD,11592,UNIPAR CARBOCLORO S.A.,name_similarity,0.4615,review_required
+PCAR3,P.ACUCAR-CBD,25771,HOSPITAL CARE CALEDONIA S.A.,name_similarity,0.4516,review_required
+PCAR4,P.ACUCAR-CBD,24546,PRÁTICA PRODUTOS S.A.,name_similarity,0.48,review_required
+PCAR4,P.ACUCAR-CBD,11592,UNIPAR CARBOCLORO S.A.,name_similarity,0.4615,review_required
+PCAR4,P.ACUCAR-CBD,25771,HOSPITAL CARE CALEDONIA S.A.,name_similarity,0.4516,review_required
+PEAB3,PAR AL BAHIA,6505,GRUPO CASAS BAHIA S.A.,name_similarity,0.64,review_required
+PEAB3,PAR AL BAHIA,94,PANATLANTICA S.A.,name_similarity,0.6364,review_required
+PEAB3,PAR AL BAHIA,20729,PARANA BCO S.A.,name_similarity,0.5714,review_required
+PEAB4,PAR AL BAHIA,6505,GRUPO CASAS BAHIA S.A.,name_similarity,0.64,review_required
+PEAB4,PAR AL BAHIA,94,PANATLANTICA S.A.,name_similarity,0.6364,review_required
+PEAB4,PAR AL BAHIA,20729,PARANA BCO S.A.,name_similarity,0.5714,review_required
+PETZ3,PETZ,11991,WETZEL S.A.,name_similarity,0.6,review_required
+PETZ3,PETZ,25836,DOTZ S.A.,name_similarity,0.5,review_required
+PETZ3,PETZ,12823,ALIPERTI S.A.,name_similarity,0.5,review_required
+PINE10,PINE,20567,BCO PINE S.A,name_similarity,0.6154,review_required
+PINE10,PINE,20931,MINERVA S.A.,name_similarity,0.5455,review_required
+PINE10,PINE,25925,BIONEXO S.A.,name_similarity,0.5455,review_required
+PINE3,PINE,20567,BCO PINE S.A,name_similarity,0.6154,review_required
+PINE3,PINE,20931,MINERVA S.A.,name_similarity,0.5455,review_required
+PINE3,PINE,25925,BIONEXO S.A.,name_similarity,0.5455,review_required
+PINE4,PINE,20567,BCO PINE S.A,name_similarity,0.6154,review_required
+PINE4,PINE,20931,MINERVA S.A.,name_similarity,0.5455,review_required
+PINE4,PINE,25925,BIONEXO S.A.,name_similarity,0.5455,review_required
+PINE9,PINE,20567,BCO PINE S.A,name_similarity,0.6154,review_required
+PINE9,PINE,20931,MINERVA S.A.,name_similarity,0.5455,review_required
+PINE9,PINE,25925,BIONEXO S.A.,name_similarity,0.5455,review_required
+PLPL3,PLANOEPLANO,21199,BCO PAN S.A.,name_similarity,0.6316,review_required
+PLPL3,PLANOEPLANO,20729,PARANA BCO S.A.,name_similarity,0.5455,review_required
+PLPL3,PLANOEPLANO,27995,PLATÃO CAPITAL S.A.,name_similarity,0.5,review_required
+PMAM3,PARANAPANEMA,18368,RIO PARANAPANEMA ENERGIA S.A.,name_similarity,0.7059,ambiguous
+PMAM3,PARANAPANEMA,20729,PARANA BCO S.A.,name_similarity,0.6957,ambiguous
+PMAM3,PARANAPANEMA,94,PANATLANTICA S.A.,name_similarity,0.5833,ambiguous
+POWE3,FOCUS ON,25313,HOUSI S.A.,name_similarity,0.5,review_required
+POWE3,FOCUS ON,19836,COSAN S.A.,name_similarity,0.5,review_required
+POWE3,FOCUS ON,26646,CANTU STORE S.A.,name_similarity,0.4706,review_required
+PPLA11,PPLA,24910,LWSA S/A,name_similarity,0.5,review_required
+PPLA11,PPLA,25003,SIMPAR S.A.,name_similarity,0.4,review_required
+PPLA11,PPLA,12653,KLABIN S.A.,name_similarity,0.4,review_required
+PRIO3,PETRORIO,22187,PRIO S.A.,name_similarity,0.6667,review_required
+PRIO3,PETRORIO,25780,PETRORECÔNCAVO S.A.,name_similarity,0.6364,review_required
+PRIO3,PETRORIO,26891,ELETRORIVER S.A.,name_similarity,0.6316,review_required
+PTBL3,PORTOBELLO,16659,PORTO SEGURO S.A.,name_similarity,0.6667,review_required
+PTBL3,PORTOBELLO,27600,PORTO SERVIÇO S.A,name_similarity,0.6364,review_required
+PTBL3,PORTOBELLO,27740,PRIO FORTE S.A.,name_similarity,0.5263,review_required
+RAPT10,RANDON PART,14109,RANDONCORP S.A.,name_similarity,0.7,review_required
+RAPT10,RANDON PART,18724,BRADESPAR S.A.,name_similarity,0.6316,review_required
+RAPT10,RANDON PART,21199,BCO PAN S.A.,name_similarity,0.5556,review_required
+RAPT3,RANDON PART,14109,RANDONCORP S.A.,name_similarity,0.7,review_required
+RAPT3,RANDON PART,18724,BRADESPAR S.A.,name_similarity,0.6316,review_required
+RAPT3,RANDON PART,21199,BCO PAN S.A.,name_similarity,0.5556,review_required
+RAPT4,RANDON PART,14109,RANDONCORP S.A.,name_similarity,0.7,review_required
+RAPT4,RANDON PART,18724,BRADESPAR S.A.,name_similarity,0.6316,review_required
+RAPT4,RANDON PART,21199,BCO PAN S.A.,name_similarity,0.5556,review_required
+RDNI3,RNI,5762,ETERNIT S.A.,name_similarity,0.6,review_required
+RDNI3,RNI,7510,ROMI S.A.,name_similarity,0.5714,review_required
+RDNI3,RNI,22187,PRIO S.A.,name_similarity,0.5714,review_required
+REAG3,REAGINVEST,8192,TREVISA INVESTIMENTOS S.A.,name_similarity,0.6,review_required
+REAG3,REAGINVEST,25887,ARANDU INVESTIMENTOS S.A.,name_similarity,0.5517,review_required
+REAG3,REAGINVEST,80020,"GP INVESTMENTS, LTD.",name_similarity,0.5385,review_required
+RECV3,PETRORECSA,25780,PETRORECÔNCAVO S.A.,name_similarity,0.75,review_required
+RECV3,PETRORECSA,20435,TECNISA S.A.,name_similarity,0.5882,review_required
+RECV3,PETRORECSA,27383,LETS RENT A CAR S/A,name_similarity,0.5714,review_required
+RENT3,LOCALIZA,24813,LOCALIZA FLEET S.A.,name_similarity,0.7619,ambiguous
+RENT3,LOCALIZA,19739,LOCALIZA RENT A CAR S.A.,name_similarity,0.6957,ambiguous
+RENT3,LOCALIZA,20745,SLC AGRICOLA S.A.,name_similarity,0.5263,ambiguous
+RENT4,LOCALIZA,24813,LOCALIZA FLEET S.A.,name_similarity,0.7619,ambiguous
+RENT4,LOCALIZA,19739,LOCALIZA RENT A CAR S.A.,name_similarity,0.6957,ambiguous
+RENT4,LOCALIZA,20745,SLC AGRICOLA S.A.,name_similarity,0.5263,ambiguous
+RENT9,LOCALIZA,24813,LOCALIZA FLEET S.A.,name_similarity,0.7619,ambiguous
+RENT9,LOCALIZA,19739,LOCALIZA RENT A CAR S.A.,name_similarity,0.6957,ambiguous
+RENT9,LOCALIZA,20745,SLC AGRICOLA S.A.,name_similarity,0.5263,ambiguous
+RIOS3,RIO ALTO,27006,RIO ALTO STL HOLDING I S.A.,name_similarity,0.56,ambiguous
+RIOS3,RIO ALTO,22055,MARISA LOJAS S.A.,name_similarity,0.5556,ambiguous
+RIOS3,RIO ALTO,22187,PRIO S.A.,name_similarity,0.5455,ambiguous
+RNEW11,RENOVA,21237,ENEVA S.A,name_similarity,0.7273,ambiguous
+RNEW11,RENOVA,21636,RENOVA ENERGIA S.A.,name_similarity,0.6316,ambiguous
+RNEW11,RENOVA,27650,REVEE S.A.,name_similarity,0.5455,ambiguous
+RNEW3,RENOVA,21237,ENEVA S.A,name_similarity,0.7273,ambiguous
+RNEW3,RENOVA,21636,RENOVA ENERGIA S.A.,name_similarity,0.6316,ambiguous
+RNEW3,RENOVA,27650,REVEE S.A.,name_similarity,0.5455,ambiguous
+RNEW4,RENOVA,21237,ENEVA S.A,name_similarity,0.7273,ambiguous
+RNEW4,RENOVA,21636,RENOVA ENERGIA S.A.,name_similarity,0.6316,ambiguous
+RNEW4,RENOVA,27650,REVEE S.A.,name_similarity,0.5455,ambiguous
+RPAD3,ALFA HOLDING,27138,SAFIRA HOLDING S.A.,name_similarity,0.8333,review_required
+RPAD3,ALFA HOLDING,23248,ANIMA HOLDING S.A.,name_similarity,0.7826,review_required
+RPAD3,ALFA HOLDING,24783,NATURA &CO HOLDING S.A.,name_similarity,0.6923,review_required
+RPAD5,ALFA HOLDING,27138,SAFIRA HOLDING S.A.,name_similarity,0.8333,review_required
+RPAD5,ALFA HOLDING,23248,ANIMA HOLDING S.A.,name_similarity,0.7826,review_required
+RPAD5,ALFA HOLDING,24783,NATURA &CO HOLDING S.A.,name_similarity,0.6923,review_required
+RPAD6,ALFA HOLDING,27138,SAFIRA HOLDING S.A.,name_similarity,0.8333,review_required
+RPAD6,ALFA HOLDING,23248,ANIMA HOLDING S.A.,name_similarity,0.7826,review_required
+RPAD6,ALFA HOLDING,24783,NATURA &CO HOLDING S.A.,name_similarity,0.6923,review_required
+RPMG3,PET MANGUINH,25305,PATRIMAR ENGENHARIA S.A.,name_similarity,0.5517,review_required
+RPMG3,PET MANGUINH,9989,REFINARIA DE PETROLEOS MANGUINHOS S.A.,name_similarity,0.5366,review_required
+RPMG3,PET MANGUINH,20516,SAO MARTINHO S.A.,name_similarity,0.4545,review_required
+RRRP3,3R PETROLEUM,24821,REDE D'OR SÃO LUIZ S.A.,name_similarity,0.48,review_required
+RRRP3,3R PETROLEUM,25780,PETRORECÔNCAVO S.A.,name_similarity,0.48,review_required
+RRRP3,3R PETROLEUM,26174,AUREN OPERAÇÕES S.A.,name_similarity,0.48,review_required
+RRRP9,3R PETROLEUM,24821,REDE D'OR SÃO LUIZ S.A.,name_similarity,0.48,review_required
+RRRP9,3R PETROLEUM,25780,PETRORECÔNCAVO S.A.,name_similarity,0.48,review_required
+RRRP9,3R PETROLEUM,26174,AUREN OPERAÇÕES S.A.,name_similarity,0.48,review_required
+SAPR11,SANEPAR,25003,SIMPAR S.A.,name_similarity,0.6154,review_required
+SAPR11,SANEPAR,26930,AMAZONE FUN PARKS S.A.,name_similarity,0.5455,review_required
+SAPR11,SANEPAR,21199,BCO PAN S.A.,name_similarity,0.5333,review_required
+SAPR3,SANEPAR,25003,SIMPAR S.A.,name_similarity,0.6154,review_required
+SAPR3,SANEPAR,26930,AMAZONE FUN PARKS S.A.,name_similarity,0.5455,review_required
+SAPR3,SANEPAR,21199,BCO PAN S.A.,name_similarity,0.5333,review_required
+SAPR4,SANEPAR,25003,SIMPAR S.A.,name_similarity,0.6154,review_required
+SAPR4,SANEPAR,26930,AMAZONE FUN PARKS S.A.,name_similarity,0.5455,review_required
+SAPR4,SANEPAR,21199,BCO PAN S.A.,name_similarity,0.5333,review_required
+SBSP3,SABESP,27014,SOLAR BEBIDAS S.A.,name_similarity,0.5556,review_required
+SBSP3,SABESP,23264,AMBEV S.A.,name_similarity,0.5455,review_required
+SBSP3,SABESP,18724,BRADESPAR S.A.,name_similarity,0.5333,review_required
+SOMA3,GRUPO SOMA,25011,GRUPO DE MODA SOMA S.A.,name_similarity,0.75,review_required
+SOMA3,GRUPO SOMA,24694,GRUPO SBF S.A.,name_similarity,0.7059,review_required
+SOMA3,GRUPO SOMA,25186,GRUPO MATEUS S.A.,name_similarity,0.7,review_required
+SPRI3,SPRINGER,23426,SERENA GERAÇÃO S.A.,name_similarity,0.5714,review_required
+SPRI3,SPRINGER,14761,CIA HERING,name_similarity,0.5714,review_required
+SPRI3,SPRINGER,25305,PATRIMAR ENGENHARIA S.A.,name_similarity,0.5385,review_required
+SPRI5,SPRINGER,23426,SERENA GERAÇÃO S.A.,name_similarity,0.5714,review_required
+SPRI5,SPRINGER,14761,CIA HERING,name_similarity,0.5714,review_required
+SPRI5,SPRINGER,25305,PATRIMAR ENGENHARIA S.A.,name_similarity,0.5385,review_required
+SPRI6,SPRINGER,23426,SERENA GERAÇÃO S.A.,name_similarity,0.5714,review_required
+SPRI6,SPRINGER,14761,CIA HERING,name_similarity,0.5714,review_required
+SPRI6,SPRINGER,25305,PATRIMAR ENGENHARIA S.A.,name_similarity,0.5385,review_required
+SRNA3,SERENA,23426,SERENA GERAÇÃO S.A.,name_similarity,0.6316,ambiguous
+SRNA3,SERENA,26441,SERENA ENERGIA S.A.,name_similarity,0.6316,ambiguous
+SRNA3,SERENA,23221,SER EDUCACIONAL S.A.,name_similarity,0.6,ambiguous
+STBP3,SANTOS BRP,13986,SUZANO S.A.,name_similarity,0.5333,review_required
+STBP3,SANTOS BRP,17892,SANTOS BRASIL PARTICIPACOES S.A.,name_similarity,0.5294,review_required
+STBP3,SANTOS BRP,14109,RANDONCORP S.A.,name_similarity,0.5263,review_required
+TAEE11,TAESA,7617,ITAÚSA S.A.,name_similarity,0.7273,review_required
+TAEE11,TAESA,20435,TECNISA S.A.,name_similarity,0.6667,review_required
+TAEE11,TAESA,18724,BRADESPAR S.A.,name_similarity,0.5714,review_required
+TAEE3,TAESA,7617,ITAÚSA S.A.,name_similarity,0.7273,review_required
+TAEE3,TAESA,20435,TECNISA S.A.,name_similarity,0.6667,review_required
+TAEE3,TAESA,18724,BRADESPAR S.A.,name_similarity,0.5714,review_required
+TAEE4,TAESA,7617,ITAÚSA S.A.,name_similarity,0.7273,review_required
+TAEE4,TAESA,20435,TECNISA S.A.,name_similarity,0.6667,review_required
+TAEE4,TAESA,18724,BRADESPAR S.A.,name_similarity,0.5714,review_required
+TEKA3,TEKA,20435,TECNISA S.A.,name_similarity,0.5455,review_required
+TEKA3,TEKA,21237,ENEVA S.A,name_similarity,0.4444,review_required
+TEKA3,TEKA,11991,WETZEL S.A.,name_similarity,0.4,review_required
+TEKA4,TEKA,20435,TECNISA S.A.,name_similarity,0.5455,review_required
+TEKA4,TEKA,21237,ENEVA S.A,name_similarity,0.4444,review_required
+TEKA4,TEKA,11991,WETZEL S.A.,name_similarity,0.4,review_required
+TELB3,TELEBRAS,17671,TELEFÔNICA BRASIL S.A,name_similarity,0.6667,review_required
+TELB3,TELEBRAS,11762,VULCABRAS S.A.,name_similarity,0.5882,review_required
+TELB3,TELEBRAS,25810,ATHENA SAÚDE BRASIL SA,name_similarity,0.56,review_required
+TELB4,TELEBRAS,17671,TELEFÔNICA BRASIL S.A,name_similarity,0.6667,review_required
+TELB4,TELEBRAS,11762,VULCABRAS S.A.,name_similarity,0.5882,review_required
+TELB4,TELEBRAS,25810,ATHENA SAÚDE BRASIL SA,name_similarity,0.56,review_required
+TRPL3,TRAN PAULIST,5762,ETERNIT S.A.,name_similarity,0.5556,review_required
+TRPL3,TRAN PAULIST,26034,GRUPO MULTI S.A.,name_similarity,0.4762,review_required
+TRPL3,TRAN PAULIST,26646,CANTU STORE S.A.,name_similarity,0.4762,review_required
+TRPL4,TRAN PAULIST,5762,ETERNIT S.A.,name_similarity,0.5556,review_required
+TRPL4,TRAN PAULIST,26034,GRUPO MULTI S.A.,name_similarity,0.4762,review_required
+TRPL4,TRAN PAULIST,26646,CANTU STORE S.A.,name_similarity,0.4762,review_required
+TTEN3,3TENTOS,22519,TECHNOS S.A.,name_similarity,0.7143,review_required
+TTEN3,3TENTOS,20435,TECNISA S.A.,name_similarity,0.5714,review_required
+TTEN3,3TENTOS,5762,ETERNIT S.A.,name_similarity,0.5714,review_required
+TXRX3,TEX RENAUX,7544,TEXTIL RENAUXVIEW S.A.,name_similarity,0.72,review_required
+TXRX3,TEX RENAUX,3980,GERDAU S.A.,name_similarity,0.5333,review_required
+TXRX3,TEX RENAUX,20435,TECNISA S.A.,name_similarity,0.5,review_required
+TXRX4,TEX RENAUX,7544,TEXTIL RENAUXVIEW S.A.,name_similarity,0.72,review_required
+TXRX4,TEX RENAUX,3980,GERDAU S.A.,name_similarity,0.5333,review_required
+TXRX4,TEX RENAUX,20435,TECNISA S.A.,name_similarity,0.5,review_required
+VIIA3,VIA,25763,VITTIA S.A.,name_similarity,0.6667,review_required
+VIIA3,VIA,4170,VALE S.A.,name_similarity,0.5714,review_required
+VIIA3,VIA,21237,ENEVA S.A,name_similarity,0.5,review_required
+VIVT3,TELEF BRASIL,17671,TELEFÔNICA BRASIL S.A,name_similarity,0.8148,review_required
+VIVT3,TELEF BRASIL,25542,CVLB BRASIL S.A,name_similarity,0.6667,review_required
+VIVT3,TELEF BRASIL,25810,ATHENA SAÚDE BRASIL SA,name_similarity,0.6429,review_required
+VIVT4,TELEF BRASIL,17671,TELEFÔNICA BRASIL S.A,name_similarity,0.8148,review_required
+VIVT4,TELEF BRASIL,25542,CVLB BRASIL S.A,name_similarity,0.6667,review_required
+VIVT4,TELEF BRASIL,25810,ATHENA SAÚDE BRASIL SA,name_similarity,0.6429,review_required
+VVAR3,VIAVAREJO,26476,AMMO VAREJO S.A.,name_similarity,0.7368,review_required
+VVAR3,VIAVAREJO,21032,ALGAR TELECOM S/A,name_similarity,0.4762,review_required
+VVAR3,VIAVAREJO,26409,VERO S.A.,name_similarity,0.4615,review_required
+VVEO3,VIVEO,26409,VERO S.A.,name_similarity,0.6667,review_required
+VVEO3,VIVEO,25925,BIONEXO S.A.,name_similarity,0.5,review_required
+VVEO3,VIVEO,27324,VOKE S.A.,name_similarity,0.4444,review_required
+WDCN3,WDC NETWORKS,26646,CANTU STORE S.A.,name_similarity,0.4762,review_required
+WDCN3,WDC NETWORKS,22519,TECHNOS S.A.,name_similarity,0.4444,review_required
+WDCN3,WDC NETWORKS,25348,ELFA MEDICAMENTOS S.A.,name_similarity,0.4444,review_required
+WEST3,WESTWING,14761,CIA HERING,name_similarity,0.5714,review_required
+WEST3,WESTWING,5410,WEG S.A.,name_similarity,0.5455,review_required
+WEST3,WESTWING,18970,AES TIETE ENERGIA SA,name_similarity,0.5217,review_required
+WIZS3,WIZ S.A.,11991,WETZEL S.A.,name_similarity,0.4444,review_required
+WIZS3,WIZ S.A.,25917,RAÍZEN S.A.,name_similarity,0.4444,review_required
+WIZS3,WIZ S.A.,25232,MÉLIUZ S.A.,name_similarity,0.4444,review_required
+WLMM3,WLM IND COM,25585,CSN MINERAÇÃO S.A.,name_similarity,0.4762,review_required
+WLMM3,WLM IND COM,24600,BANCO BMG S/A,name_similarity,0.4706,review_required
+WLMM3,WLM IND COM,23035,LINX S.A.,name_similarity,0.4615,review_required
+WLMM4,WLM IND COM,25585,CSN MINERAÇÃO S.A.,name_similarity,0.4762,review_required
+WLMM4,WLM IND COM,24600,BANCO BMG S/A,name_similarity,0.4706,review_required
+WLMM4,WLM IND COM,23035,LINX S.A.,name_similarity,0.4615,review_required

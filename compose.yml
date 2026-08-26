@@ -1,0 +1,73 @@
+name: b3-portfolio-lab
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-portfolio}
+      POSTGRES_USER: ${POSTGRES_USER:-portfolio}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-portfolio_dev_password}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-portfolio} -d ${POSTGRES_DB:-portfolio}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+    restart: unless-stopped
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    command: ["valkey-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-portfolio}:${POSTGRES_PASSWORD:-portfolio_dev_password}@postgres:5432/${POSTGRES_DB:-portfolio}
+      DATA_DIR: /workspace/data
+      MODEL_DIR: /workspace/models
+      VALKEY_URL: redis://valkey:6379/0
+      PIPELINE_PROFILE: ${PIPELINE_PROFILE:-balanced}
+      PIPELINE_CPU_THREADS: ${PIPELINE_CPU_THREADS:-}
+      B3_HTTP_CONCURRENCY: ${B3_HTTP_CONCURRENCY:-}
+      B3_HTTP_TIMEOUT_CONNECT: ${B3_HTTP_TIMEOUT_CONNECT:-10}
+      B3_HTTP_TIMEOUT_READ: ${B3_HTTP_TIMEOUT_READ:-30}
+      B3_HTTP_RETRIES: ${B3_HTTP_RETRIES:-3}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - ./data:/workspace/data
+      - ./models:/workspace/models
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:${API_PORT:-8000}
+      INTERNAL_API_URL: http://api:8000
+    depends_on:
+      - api
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    restart: unless-stopped
+
+volumes:
+  postgres-data:

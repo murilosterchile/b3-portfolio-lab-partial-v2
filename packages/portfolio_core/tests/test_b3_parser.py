@@ -39,3 +39,5 @@ def test_parse_official_fixed_width_line() -> None:
     assert row["close"] == 12.80
     assert row["trades"] == 123
     assert row["quantity"] == 10000
+    assert row["traded_value_brl"] == 1_234_500.0
+    assert row["volume"] == row["traded_value_brl"]  # non-destructive legacy alias

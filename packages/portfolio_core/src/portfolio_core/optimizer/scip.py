@@ -63,7 +63,7 @@ def solve_exact_scip(instance: QKPInstance, *, time_limit_seconds: float | None 
     return OptimizationResult(
         selected_indices=selected,
         selected_names=tuple(instance.names[i] for i in selected),
-        objective=float(model.getSolObjVal(solution)),
+        objective=instance.objective_value(selected),
         total_cost=float(instance.costs[list(selected)].sum()) if selected else 0.0,
         status=status,
         solver="SCIP",

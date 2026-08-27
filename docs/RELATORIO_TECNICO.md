@@ -38,7 +38,7 @@ Essa escolha evita aumentar custo de ingestão e manutenção do banco apenas pa
 
 ## 5. Integração com dados históricos da B3
 
-O projeto integra os arquivos oficiais COTAHIST anuais. A B3 documenta o arquivo com registros de 245 bytes e campos posicionais para data, BDI, ticker, mercado, empresa, especificação, preços, número de negócios, quantidade, volume, ISIN e outros dados.
+O projeto integra os arquivos oficiais COTAHIST anuais. A B3 documenta o arquivo com registros de 245 bytes e campos posicionais para data, BDI, ticker, mercado, empresa, especificação, preços, número de negócios, quantidade QUATOT, valor financeiro VOLTOT, ISIN e outros dados. VOLTOT é convertido de centavos para BRL e exposto como `traded_value_brl`; `volume` é mantido apenas como alias compatível com partições existentes.
 
 O parser implementado segue essas posições oficiais. Ele mantém registros do mercado à vista e filtra especificações compatíveis com ações/units (`ON`, `PN`, variações de PN e `UNT`).
 
@@ -80,7 +80,7 @@ O target é retorno futuro excedente, e não preço exato futuro. No protótipo 
 - momentum 12-1;
 - volatilidade móvel;
 - distância para médias móveis;
-- proxies de volume e número de negócios;
+- valor financeiro negociado, iliquidez de Amihud e número de negócios;
 - rankings cross-sectional das principais variáveis.
 
 O módulo fundamental implementa um conjunto conservador de ratios baseados em contas padronizadas (margem líquida/bruta, proxies de ROE/ROA, asset turnover e escalas de receita/ativos/patrimônio). Eles são incorporados automaticamente ao treino quando existe um ticker/CVM bridge revisado e temporalmente válido. Uma versão comercial deve ampliar essa taxonomia por setor e manter governança sobre as regras contábeis.
@@ -90,6 +90,8 @@ O módulo fundamental implementa um conjunto conservador de ratios baseados em c
 Não existe `train_test_split(shuffle=True)` no fluxo de pesquisa.
 
 O treinamento e o backtest usam janelas temporais. Rank IC, top-decile e top-minus-bottom são calculados dentro de cada data de previsão e só depois agregados no tempo, evitando ranquear uma ação de janeiro contra outra de novembro.
+
+O retorno futuro bruto e as datas do label são calculados antes do snapshot mensal. O retorno excedente e o rank do target só são normalizados depois do filtro de universo investível point-in-time, de modo que ativos inelegíveis não alterem os targets dos elegíveis.
 
 O projeto inclui tuning opcional com Optuna. O tuning usa janelas expansivas anteriores e mantém o ano final completamente intocado como holdout; o script de treino só aceita o arquivo de hiperparâmetros quando o holdout registrado coincide com o ano de validação final. O preprocessamento aprende mediana/escala apenas no treino. O backtester walk-forward treina usando anos anteriores ao ano que será previsto.
 
@@ -251,6 +253,7 @@ O ambiente usado para montar o artefato não possui acesso externo para instalar
 - PySCIPOpt: https://pyscipopt.readthedocs.io/en/stable/install.html
 - SCIP: https://www.scipopt.org/
 - Gu, Kelly e Xiu - Empirical Asset Pricing via Machine Learning.
+- Amihud - Illiquidity and Stock Returns: Cross-Section and Time-Series Effects (2002).
 - Jegadeesh e Titman - Returns to Buying Winners and Selling Losers.
 - Ledoit e Wolf - trabalhos de shrinkage de matriz de covariância.
 - Lopez de Prado - Building Diversified Portfolios that Outperform Out of Sample (HRP).

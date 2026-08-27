@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 from portfolio_core.data.b3 import download_cotahist, materialize_cotahist
+from portfolio_core.data.universe import apply_point_in_time_universe, build_point_in_time_universe
 from portfolio_core.features import build_technical_features, monthly_snapshots
 import polars as pl
 
@@ -35,9 +36,11 @@ def main() -> None:
     # Rebuild the cross-year feature panel if enough historical partitions exist.
     parts = sorted((data_dir / "silver" / "b3_prices").glob("year=*/part-000.parquet"))
     if len(parts) >= 2:
-        prices = pl.concat([pl.read_parquet(p) for p in parts], how="vertical_relaxed")
+        prices = pl.concat([pl.read_parquet(p) for p in parts], how="diagonal_relaxed")
         features = build_technical_features(prices)
-        monthly = monthly_snapshots(features)
+        monthly = apply_point_in_time_universe(
+            monthly_snapshots(features), build_point_in_time_universe(prices)
+        )
         target = data_dir / "gold" / "features" / "monthly_features.parquet"
         target.parent.mkdir(parents=True, exist_ok=True)
         monthly.write_parquet(target, compression="zstd")

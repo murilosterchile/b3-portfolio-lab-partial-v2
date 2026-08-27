@@ -59,7 +59,7 @@ The system integrates the official annual COTAHIST files:
 
 `https://bvmf.bmfbovespa.com.br/InstDados/SerHist/COTAHIST_A{YYYY}.ZIP`
 
-The official B3 layout defines 245-byte records and three record types (header, quotation and trailer). The parser implements the official field positions for date, BDI, ticker, market type, issuer, specification, OHLC, trades, quantity, volume, ISIN and related fields.
+The official B3 layout defines 245-byte records and three record types (header, quotation and trailer). The parser implements the official field positions for date, BDI, ticker, market type, issuer, specification, OHLC, trades, QUATOT quantity, VOLTOT financial traded value, ISIN and related fields. VOLTOT is scaled from cents to BRL and exposed canonically as `traded_value_brl`; `volume` remains a compatibility alias for existing partitions.
 
 Data lineage rules:
 
@@ -99,7 +99,7 @@ The first model is an ensemble of:
 
 This choice is deliberate. Financial cross-sectional datasets are heterogeneous, noisy and mostly tabular. Gradient-boosted trees are strong baselines and frequently outperform much more complex deep models on such data. Ridge acts as a low-variance sanity component.
 
-The target is **future excess return**, not exact future price. The self-contained prototype subtracts the cross-sectional market return. A production research run should use a formally chosen benchmark such as IBOV/CDI depending on the product mandate.
+The target is **future excess return**, not exact future price. Raw forward returns and label dates are computed first; the monthly snapshot and point-in-time investible-universe filter are then applied before excess returns and ranks are normalized. Thus an ineligible security cannot affect an eligible security's target. A production research run may instead use a formally chosen benchmark such as IBOV/CDI depending on the product mandate.
 
 ### Features
 
@@ -109,7 +109,7 @@ The prototype generates:
 - 12-1 momentum;
 - rolling volatility;
 - distance to moving averages;
-- liquidity/trade proxies;
+- financial traded-value liquidity and Amihud illiquidity proxies;
 - cross-sectional percentile ranks.
 
 The fundamental engine is a governed extension point because accounting taxonomy and issuer mapping need review before ratios are trusted.
@@ -259,6 +259,7 @@ Full Docker/web dependency installation could not be executed inside the artifac
 - PySCIPOpt installation: https://pyscipopt.readthedocs.io/en/stable/install.html
 - SCIP Optimization Suite: https://www.scipopt.org/
 - Gu, Kelly & Xiu, *Empirical Asset Pricing via Machine Learning*, Review of Financial Studies.
+- Amihud, *Illiquidity and Stock Returns: Cross-Section and Time-Series Effects*, Journal of Financial Markets, 2002.
 - Jegadeesh & Titman, *Returns to Buying Winners and Selling Losers*, Journal of Finance.
 - Ledoit & Wolf, covariance shrinkage literature.
 - Lopez de Prado, *Building Diversified Portfolios that Outperform Out of Sample* (HRP).

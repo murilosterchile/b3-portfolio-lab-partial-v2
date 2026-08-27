@@ -794,7 +794,13 @@ def materialize_adjusted_price_history(
         raise FileNotFoundError(
             "Corporate actions are missing; run scripts/ingest_corporate_actions.py first"
         )
-    prices = pl.concat([pl.read_parquet(part) for part in parts], how="vertical_relaxed")
+    prices = pl.concat([pl.read_parquet(part) for part in parts], how="diagonal_relaxed")
+    if "traded_value_brl" in prices.columns and "volume" in prices.columns:
+        prices = prices.with_columns(
+            pl.coalesce("traded_value_brl", "volume").alias("traded_value_brl")
+        )
+    elif "traded_value_brl" not in prices.columns and "volume" in prices.columns:
+        prices = prices.with_columns(pl.col("volume").alias("traded_value_brl"))
     excluded = sorted({str(root).strip().upper()[:4] for root in excluded_issuer_roots if str(root).strip()})
     coverage_quarantine = prices.head(0).with_columns(
         pl.lit(None, dtype=pl.Utf8).alias("coverage_reason")

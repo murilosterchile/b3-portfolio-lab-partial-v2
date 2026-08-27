@@ -28,6 +28,7 @@ from portfolio_core.data.corporate_actions import (
     materialize_adjusted_price_history,
     sync_corporate_actions,
 )
+from portfolio_core.data.universe import apply_point_in_time_universe, build_point_in_time_universe
 from portfolio_core.features import build_technical_features, monthly_snapshots
 
 
@@ -100,7 +101,9 @@ def main() -> None:
             [pl.read_parquet(path) for path in adjusted_parts], how="vertical_relaxed"
         )
         features = build_technical_features(prices)
-        monthly = monthly_snapshots(features)
+        monthly = apply_point_in_time_universe(
+            monthly_snapshots(features), build_point_in_time_universe(prices)
+        )
         target = data_dir / "gold" / "features" / "monthly_features.parquet"
         target.parent.mkdir(parents=True, exist_ok=True)
         monthly.write_parquet(target, compression="zstd")

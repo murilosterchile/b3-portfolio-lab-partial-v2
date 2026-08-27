@@ -32,7 +32,12 @@ def main() -> None:
     if not feature_path.exists():
         raise SystemExit("No feature panel. Ingest B3 history first.")
     frame = pl.read_parquet(feature_path)
-    required = {"target_excess_return", "target_end_date"}
+    required = {
+        "target_excess_return",
+        "target_cross_sectional_rank",
+        "target_end_date",
+        "universe_eligible",
+    }
     if missing := required - set(frame.columns):
         raise SystemExit(f"Feature panel predates leakage-safe labels; rebuild it. Missing: {sorted(missing)}")
     development = filter_labels_known_by(

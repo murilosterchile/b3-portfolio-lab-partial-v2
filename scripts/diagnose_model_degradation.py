@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 
+from portfolio_core.data.universe import apply_point_in_time_universe, build_point_in_time_universe
 from portfolio_core.data_quality import filter_labels_known_by
 from portfolio_core.features.fundamental import FUNDAMENTAL_FEATURES
 from portfolio_core.ml.diagnostics import (
@@ -155,8 +156,30 @@ def main() -> None:
     if not panel.exists():
         raise SystemExit("No feature panel is available")
     frame = pl.read_parquet(panel)
-    if "target_end_date" not in frame.columns:
-        raise SystemExit("Rebuild features first: target_end_date is required for leakage-safe diagnostics")
+    required = {
+        "target_end_date",
+        "target_excess_return",
+        "target_cross_sectional_rank",
+        "universe_eligible",
+    }
+    missing_protocol = required - set(frame.columns)
+    if missing_protocol and missing_protocol <= {
+        "target_excess_return",
+        "target_cross_sectional_rank",
+        "universe_eligible",
+    }:
+        adjusted = sorted(
+            (data_dir / "silver" / "b3_prices_adjusted").glob("year=*/part-000.parquet")
+        )
+        raw = sorted((data_dir / "silver" / "b3_prices").glob("year=*/part-000.parquet"))
+        if parts := adjusted or raw:
+            prices = pl.concat([pl.read_parquet(path) for path in parts], how="vertical_relaxed")
+            frame = apply_point_in_time_universe(frame, build_point_in_time_universe(prices))
+    if missing := required - set(frame.columns):
+        raise SystemExit(
+            "Rebuild features first: investible PIT targets are required for "
+            f"leakage-safe diagnostics. Missing: {sorted(missing)}"
+        )
     development = filter_labels_known_by(
         frame, knowledge_cutoff=protocol.development_knowledge_cutoff
     )

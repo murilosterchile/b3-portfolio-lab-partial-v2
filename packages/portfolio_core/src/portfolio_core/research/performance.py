@@ -4,6 +4,29 @@ import numpy as np
 import polars as pl
 
 
+def relative_cagr_from_returns(
+    strategy_returns: np.ndarray,
+    benchmark_returns: np.ndarray,
+    *,
+    periods_per_year: int = 12,
+) -> float:
+    """Annualized relative growth from the strategy/benchmark wealth ratio.
+
+    This is deliberately not the arithmetic difference between two CAGRs.
+    """
+    strategy = np.asarray(strategy_returns, dtype=float)
+    benchmark = np.asarray(benchmark_returns, dtype=float)
+    if strategy.shape != benchmark.shape or strategy.size == 0:
+        raise ValueError("strategy and benchmark returns must be non-empty and aligned")
+    if np.any(~np.isfinite(strategy)) or np.any(~np.isfinite(benchmark)):
+        raise ValueError("strategy and benchmark returns must be finite")
+    if np.any(strategy <= -1.0) or np.any(benchmark <= -1.0):
+        raise ValueError("returns must be greater than -100%")
+    wealth_ratio = float(np.prod((1.0 + strategy) / (1.0 + benchmark)))
+    years = strategy.size / periods_per_year
+    return float(wealth_ratio ** (1.0 / years) - 1.0)
+
+
 def equity_period_returns(curve: pl.DataFrame, *, period: str) -> pl.DataFrame:
     if period not in {"1mo", "1y"}:
         raise ValueError("period must be 1mo or 1y")

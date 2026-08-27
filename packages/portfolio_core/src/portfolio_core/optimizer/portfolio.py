@@ -37,24 +37,19 @@ def build_portfolio_qkp(
     min_positions: int,
     max_positions: int,
     risk_aversion: float,
+    expected_return_horizon_bars: int,
+    covariance_horizon_bars: int,
     uncertainty_penalty: float = 0.5,
-    quant_weight: float = 0.25,
-    quant_return_scale: float = 0.02,
-    liquidity_weight: float = 0.05,
-    liquidity_return_scale: float = 0.01,
     min_position_fraction: float = 0.05,
     sector_max_count: dict[str, int] | None = None,
     fixed_k: int | None = None,
-    previous_selected: set[str] | None = None,
-    turnover_selection_penalty: float = 0.0,
 ) -> QKPInstance:
     """Build a cardinality-constrained quadratic stock-selection problem.
 
-    The linear term combines ML alpha, a small independent multifactor prior, liquidity and model
-    uncertainty. The pair term is covariance-like rather than correlation-only: the observed
-    correlation is scaled by each candidate's annualized volatility before normalization. This
-    makes a pair of two highly volatile names carry more risk than an equally correlated low-vol
-    pair while preserving the exact QKP formulation.
+    For the fixed-cardinality portfolio ``w = x / k``, coefficients are the exact
+    expansion of ``mu' w - risk_aversion * w' covariance w``. ``mu`` is the
+    predicted excess return less its calibrated uncertainty penalty. Expected
+    returns and covariance must use the same explicit horizon.
     """
     n = len(candidates)
     if n == 0:
@@ -64,13 +59,9 @@ def build_portfolio_qkp(
     validate_correlation_matrix(correlation, context="QKP correlation")
     expected = np.asarray([c.predicted_excess_return for c in candidates], dtype=float)
     uncertainty = np.asarray([c.uncertainty for c in candidates], dtype=float)
-    quant = np.asarray([c.quant_score for c in candidates], dtype=float)
-    liquidity = np.asarray([c.liquidity_score for c in candidates], dtype=float)
     volatility = np.asarray([c.volatility_annual for c in candidates], dtype=float)
     validate_finite_array(expected, context="QKP expected_return")
     validate_finite_array(uncertainty, context="QKP uncertainty")
-    validate_finite_array(quant, context="QKP quant_score")
-    validate_finite_array(liquidity, context="QKP liquidity_score")
     validate_finite_array(volatility, context="QKP volatility")
     if np.any(uncertainty < 0):
         raise DataQualityError("QKP uncertainty must be non-negative")
@@ -83,32 +74,26 @@ def build_portfolio_qkp(
         raise DataQualityError("fixed_k must be within the cardinality bounds")
     if not np.isfinite(risk_aversion) or risk_aversion < 0:
         raise DataQualityError("risk_aversion must be finite and non-negative")
-    if turnover_selection_penalty < 0:
-        raise DataQualityError("turnover_selection_penalty must be non-negative")
+    if not isinstance(expected_return_horizon_bars, int) or expected_return_horizon_bars < 1:
+        raise DataQualityError("expected_return_horizon_bars must be a positive integer")
+    if not isinstance(covariance_horizon_bars, int) or covariance_horizon_bars < 1:
+        raise DataQualityError("covariance_horizon_bars must be a positive integer")
+    if expected_return_horizon_bars != covariance_horizon_bars:
+        raise DataQualityError("expected-return and covariance horizons must match")
+    if not np.isfinite(uncertainty_penalty) or uncertainty_penalty < 0:
+        raise DataQualityError("uncertainty_penalty must be finite and non-negative")
 
-    quant_alpha = quant_return_scale * (np.clip(quant, 0.0, 100.0) / 100.0 - 0.5)
-    liquidity_alpha = liquidity_return_scale * (
-        np.clip(liquidity, 0.0, 100.0) / 100.0 - 0.5
+    alpha = expected - uncertainty_penalty * uncertainty
+    covariance = (
+        np.asarray(correlation, dtype=float)
+        * np.outer(volatility, volatility)
+        * (covariance_horizon_bars / 252.0)
     )
-    alpha = (
-        expected
-        + quant_weight * quant_alpha
-        + liquidity_weight * liquidity_alpha
-        - uncertainty_penalty * uncertainty
-    )
-
-    covariance = np.asarray(correlation, dtype=float) * np.outer(volatility, volatility)
     risk_scale = risk_aversion / float(k**2)
-    linear = alpha - risk_scale * np.diag(covariance)
-    if previous_selected:
-        linear -= np.asarray(
-            [0.0 if candidate.ticker in previous_selected else turnover_selection_penalty for candidate in candidates]
-        )
+    linear = alpha / float(k) - risk_scale * np.diag(covariance)
     # The solver sums each i,j pair once, hence the factor two from x' Sigma x.
     pair = -2.0 * risk_scale * covariance
     np.fill_diagonal(pair, 0.0)
-    linear *= 10_000.0
-    pair *= 10_000.0
 
     # Selection is economically invariant to nominal share price. Budget and
     # round lots belong exclusively to the downstream discrete allocator.
@@ -124,6 +109,8 @@ def build_portfolio_qkp(
         sectors=tuple(c.sector for c in candidates),
         sector_max_count=sector_max_count or {},
         issuer_ids=tuple(c.issuer_id or c.ticker[:4] for c in candidates),
+        expected_return_horizon_bars=expected_return_horizon_bars,
+        covariance_horizon_bars=covariance_horizon_bars,
     )
 
 

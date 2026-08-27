@@ -34,6 +34,7 @@ from portfolio_core.data.corporate_actions import (
 from portfolio_core.data.cvm import download_cvm_document, extract_cvm_statements
 from portfolio_core.data.cvm_registry import materialize_cvm_registry
 from portfolio_core.data.issuer_bridge import validate_issuer_bridge
+from portfolio_core.data.universe import apply_point_in_time_universe, build_point_in_time_universe
 from portfolio_core.features import build_technical_features, monthly_snapshots
 from portfolio_core.features.fundamental import (
     attach_fundamentals_point_in_time,
@@ -126,7 +127,10 @@ def main() -> None:
     adjusted_prices = pl.concat(
         [pl.read_parquet(path) for path in adjusted_parts], how="vertical_relaxed"
     )
-    technical = monthly_snapshots(build_technical_features(adjusted_prices))
+    raw_labels = build_technical_features(adjusted_prices)
+    monthly = monthly_snapshots(raw_labels)
+    universe = build_point_in_time_universe(adjusted_prices)
+    technical = apply_point_in_time_universe(monthly, universe)
     technical_path = data_dir / "gold" / "features" / "monthly_features.parquet"
     technical_path.parent.mkdir(parents=True, exist_ok=True)
     technical.write_parquet(technical_path, compression="zstd")

@@ -110,7 +110,7 @@ def solve_exact_branch_and_bound(instance: QKPInstance, *, max_n: int = 32) -> O
     return OptimizationResult(
         selected_indices=original,
         selected_names=tuple(instance.names[i] for i in original),
-        objective=float(best_value),
+        objective=instance.objective_value(original),
         total_cost=float(instance.costs[list(original)].sum()),
         status="optimal",
         solver="exact-bnb",

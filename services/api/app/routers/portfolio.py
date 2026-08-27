@@ -24,6 +24,7 @@ from ..schemas import OptimizeRequest, OptimizeResponse, PositionOut
 from ..security import require_optimizer_auth
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
+MONTHLY_HORIZON_BARS = 21
 
 
 def _correlation(rows: list[AssetSnapshot]) -> np.ndarray:
@@ -51,17 +52,32 @@ def optimize(payload: OptimizeRequest, db: Session = Depends(get_db)) -> Optimiz
     latest = db.scalar(select(func.max(AssetSnapshot.as_of)))
     if latest is None:
         raise HTTPException(status_code=409, detail="No model snapshot available")
-    rows = list(
+    ranked_rows = list(
         db.scalars(
             select(AssetSnapshot)
             .where(AssetSnapshot.as_of == latest)
             .order_by(
+                desc(
+                    AssetSnapshot.predicted_excess_return
+                    - payload.uncertainty_penalty * AssetSnapshot.prediction_uncertainty
+                ),
                 desc(AssetSnapshot.liquidity_score),
-                desc(AssetSnapshot.ml_score),
             )
-            .limit(payload.candidate_count)
         )
     )
+    # The snapshot is the investability gate. Rank it by calibrated economic
+    # alpha and preserve candidate capacity by admitting at most one share class
+    # per issuer before QKP applies the same hard issuer constraint.
+    rows: list[AssetSnapshot] = []
+    admitted_issuers: set[str] = set()
+    for row in ranked_rows:
+        issuer = row.issuer_id or row.ticker[:4]
+        if issuer in admitted_issuers:
+            continue
+        admitted_issuers.add(issuer)
+        rows.append(row)
+        if len(rows) == payload.candidate_count:
+            break
     if len(rows) < payload.min_positions:
         raise HTTPException(status_code=409, detail="Insufficient candidate universe")
 
@@ -106,7 +122,8 @@ def optimize(payload: OptimizeRequest, db: Session = Depends(get_db)) -> Optimiz
         max_positions=payload.max_positions,
         risk_aversion=payload.risk_aversion,
         uncertainty_penalty=payload.uncertainty_penalty,
-        min_position_fraction=1.0 / max(payload.max_positions * 1.8, 1.0),
+        expected_return_horizon_bars=MONTHLY_HORIZON_BARS,
+        covariance_horizon_bars=MONTHLY_HORIZON_BARS,
         sector_max_count={
             sector: max(1, int(0.40 * payload.max_positions))
             for sector in {row.sector for row in rows}
@@ -181,6 +198,7 @@ def optimize(payload: OptimizeRequest, db: Session = Depends(get_db)) -> Optimiz
             "QKP selection is solved exactly; allocation is a separate risk-allocation stage.",
             f"Correlation source: {correlation_source}.",
             "Covariance/correlation never use prices after the model snapshot date.",
+            "QKP expected returns and covariance use the same 21-trading-bar horizon.",
             "This prototype is research software, not an investment recommendation.",
         ],
     )

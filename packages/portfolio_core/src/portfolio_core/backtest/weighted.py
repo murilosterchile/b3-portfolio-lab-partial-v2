@@ -57,7 +57,7 @@ def build_monthly_risk_benchmark_weights(
     rows: list[dict[str, object]] = []
     for signal_date in sorted(set(features["trade_date"].to_list())):
         cross = features.filter(pl.col("trade_date") == signal_date).sort(
-            "rank_log_volume_21d", descending=True
+            "rank_log_traded_value_21d", descending=True
         )
         if "CD_CVM" in cross.columns:
             cross = cross.with_columns(pl.col("CD_CVM").cast(pl.Utf8).alias("__issuer"))
@@ -181,10 +181,20 @@ def run_monthly_weighted_backtest_detailed(
     adv = np.full_like(values, np.nan)
     quoted_spread_bps = np.full_like(values, np.nan)
     if config.cost_model.mode == "liquidity":
-        if "volume" not in used.columns:
-            raise DataQualityError("liquidity cost model requires B3 financial volume")
+        if "traded_value_brl" in used.columns and "volume" in used.columns:
+            traded_value = pl.coalesce("traded_value_brl", "volume")
+        elif "traded_value_brl" in used.columns:
+            traded_value = pl.col("traded_value_brl")
+        elif "volume" in used.columns:
+            traded_value = pl.col("volume")
+        else:
+            raise DataQualityError("liquidity cost model requires B3 traded value in BRL")
         liquidity = used.sort(["ticker", "trade_date"]).with_columns(
-            pl.col("volume").rolling_mean(21, min_samples=5).shift(1).over("ticker").alias("__adv")
+            traded_value
+            .rolling_mean(21, min_samples=5)
+            .shift(1)
+            .over("ticker")
+            .alias("__adv")
         )
         if {"best_bid", "best_ask"} <= set(used.columns):
             liquidity = liquidity.with_columns(

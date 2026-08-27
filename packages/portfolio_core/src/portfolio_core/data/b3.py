@@ -33,8 +33,8 @@ _SLICES: dict[str, tuple[int, int]] = {
     "best_bid": (121, 134),
     "best_ask": (134, 147),
     "trades": (147, 152),
-    "quantity": (152, 170),
-    "volume": (170, 188),
+    "quantity": (152, 170),  # QUATOT: number of securities traded
+    "traded_value_brl": (170, 188),  # VOLTOT: financial value in BRL cents
     "exercise_price": (188, 201),
     "correction_indicator": (201, 202),
     "maturity_date": (202, 210),
@@ -52,7 +52,7 @@ _PRICE_FIELDS = {
     "close",
     "best_bid",
     "best_ask",
-    "volume",
+    "traded_value_brl",
     "exercise_price",
 }
 
@@ -89,6 +89,10 @@ def parse_cotahist_line(line: str) -> dict[str, object] | None:
             row[name] = _parse_int(raw)
         else:
             row[name] = raw.strip()
+    # Compatibility alias for already materialized datasets and downstream
+    # readers. COTAHIST ``volume`` has always represented VOLTOT (BRL), never
+    # QUATOT; new code should use the dimensionally explicit canonical name.
+    row["volume"] = row["traded_value_brl"]
     return row
 
 

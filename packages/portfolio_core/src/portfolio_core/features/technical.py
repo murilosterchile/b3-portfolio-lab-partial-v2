@@ -3,7 +3,7 @@ from __future__ import annotations
 import polars as pl
 from portfolio_core.data_quality import DataQualityError, validate_prices
 
-REQUIRED_PRICE_COLUMNS = {"trade_date", "ticker", "close", "volume", "trades"}
+REQUIRED_PRICE_COLUMNS = {"trade_date", "ticker", "close", "trades"}
 
 
 def build_technical_features(
@@ -26,6 +26,18 @@ def build_technical_features(
     missing = REQUIRED_PRICE_COLUMNS - set(prices.columns)
     if missing:
         raise ValueError(f"Missing required price columns: {sorted(missing)}")
+    if "traded_value_brl" not in prices.columns and "volume" not in prices.columns:
+        raise ValueError("Missing required financial-liquidity column: traded_value_brl")
+
+    # ``volume`` is the legacy name of B3 VOLTOT, already scaled from cents to
+    # BRL by the COTAHIST parser. Prefer the explicit name while accepting old
+    # silver partitions without a destructive rewrite.
+    if "traded_value_brl" not in prices.columns:
+        prices = prices.with_columns(pl.col("volume").alias("traded_value_brl"))
+    elif "volume" in prices.columns:
+        prices = prices.with_columns(
+            pl.coalesce("traded_value_brl", "volume").alias("traded_value_brl")
+        )
 
     validate_prices(prices, context="technical feature prices")
     price_column = "adjusted_close" if "adjusted_close" in prices.columns else "close"
@@ -103,18 +115,25 @@ def build_technical_features(
         .then(px.shift(21).over("ticker") / px.shift(252).over("ticker") - 1.0)
         .otherwise(None)
         .alias("momentum_12_1"),
-        pl.col("volume").log1p().alias("log_volume"),
-        pl.col("volume").rolling_mean(21).over("ticker").log1p().alias("log_volume_21d"),
+        pl.col("traded_value_brl").log1p().alias("log_traded_value"),
+        pl.col("traded_value_brl").log1p().alias("log_volume"),  # legacy alias
+        pl.col("traded_value_brl")
+        .rolling_mean(21)
+        .over("ticker")
+        .log1p()
+        .alias("log_volume_21d"),  # legacy alias
         pl.col("trades").rolling_mean(21).over("ticker").log1p().alias("log_trades_21d"),
         (-pl.col("return_5d")).alias("short_term_reversal_5d"),
         (0.5 * pl.col("return_63d") + 0.5 * pl.col("return_126d")).alias(
             "medium_term_momentum"
         ),
-        (px * pl.col("volume")).rolling_mean(21).over("ticker").log1p().alias(
-            "log_traded_value_21d"
-        ),
+        pl.col("traded_value_brl")
+        .rolling_mean(21)
+        .over("ticker")
+        .log1p()
+        .alias("log_traded_value_21d"),
         (
-            (pl.col("ret_1d").abs() / (px * pl.col("volume")).clip(lower_bound=1.0))
+            (pl.col("ret_1d").abs() / pl.col("traded_value_brl").clip(lower_bound=1e-12))
             .rolling_mean(21)
             .over("ticker")
         ).alias("amihud_illiquidity_21d"),
@@ -126,15 +145,8 @@ def build_technical_features(
 
     frame = frame.with_columns(
         pl.col("ret_1d").mean().over("trade_date").alias("market_return_1d"),
-        pl.col("future_return").mean().over("trade_date").alias("market_forward_return")
     ).with_columns(
         (pl.col("ret_1d") - pl.col("market_return_1d")).alias("market_residual_1d"),
-        (pl.col("future_return") - pl.col("market_forward_return")).alias("target_excess_return"),
-        (
-            pl.col("future_return").rank(method="average").over("trade_date")
-            / pl.col("future_return").is_not_null().sum().over("trade_date")
-            - 0.5
-        ).alias("target_cross_sectional_rank"),
         pl.lit(horizon_days).alias("target_horizon_bars"),
         pl.lit(execution_lag_bars).alias("execution_lag_bars"),
     )

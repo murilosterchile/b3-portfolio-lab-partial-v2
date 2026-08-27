@@ -155,8 +155,17 @@ def main() -> None:
     if not panel.exists():
         raise SystemExit("No feature panel is available")
     frame = pl.read_parquet(panel)
-    if "target_end_date" not in frame.columns:
-        raise SystemExit("Rebuild features first: target_end_date is required for leakage-safe diagnostics")
+    required = {
+        "target_end_date",
+        "target_excess_return",
+        "target_cross_sectional_rank",
+        "universe_eligible",
+    }
+    if missing := required - set(frame.columns):
+        raise SystemExit(
+            "Rebuild features first: investible PIT targets are required for "
+            f"leakage-safe diagnostics. Missing: {sorted(missing)}"
+        )
     development = filter_labels_known_by(
         frame, knowledge_cutoff=protocol.development_knowledge_cutoff
     )

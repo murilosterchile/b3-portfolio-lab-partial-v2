@@ -344,10 +344,16 @@ def run_monthly_topk_backtest_detailed(
     adv = np.full_like(close, np.nan)
     quoted_spread_bps = np.full_like(close, np.nan)
     if config.cost_model.mode == "liquidity":
-        if "volume" not in used_prices.columns:
-            raise DataQualityError("liquidity cost model requires B3 financial volume")
+        if "traded_value_brl" in used_prices.columns and "volume" in used_prices.columns:
+            traded_value = pl.coalesce("traded_value_brl", "volume")
+        elif "traded_value_brl" in used_prices.columns:
+            traded_value = pl.col("traded_value_brl")
+        elif "volume" in used_prices.columns:
+            traded_value = pl.col("volume")
+        else:
+            raise DataQualityError("liquidity cost model requires B3 traded value in BRL")
         liquidity_long = used_prices.sort(["ticker", "trade_date"]).with_columns(
-            pl.col("volume")
+            traded_value
             .rolling_mean(window_size=21, min_samples=5)
             .shift(1)
             .over("ticker")

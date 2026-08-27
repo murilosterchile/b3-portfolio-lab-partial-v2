@@ -29,8 +29,17 @@ def main() -> None:
     if not feature_path.exists():
         raise SystemExit("No feature panel. Run the research data refresh first.")
     frame = pl.read_parquet(feature_path)
-    if "target_end_date" not in frame.columns:
-        raise SystemExit("Feature panel predates target_end_date. Rebuild features before training.")
+    required = {
+        "target_end_date",
+        "target_excess_return",
+        "target_cross_sectional_rank",
+        "universe_eligible",
+    }
+    if missing := required - set(frame.columns):
+        raise SystemExit(
+            "Feature panel predates investible PIT targets. "
+            f"Rebuild features before training. Missing: {sorted(missing)}"
+        )
     feature_names = DEFAULT_FEATURES + [name for name in FUNDAMENTAL_FEATURES if name in frame.columns]
     development = filter_labels_known_by(
         frame, knowledge_cutoff=protocol.development_knowledge_cutoff
@@ -182,7 +191,10 @@ def main() -> None:
                         volatility_annual=float(row.get("volatility_63d") or 0.02) * (252.0 ** 0.5),
                         ml_score=max(0.0, min(100.0, ml_score)),
                         quant_score=float(row.get("quant_score") or 0.5) * 100.0,
-                        liquidity_score=float(row.get("rank_log_volume_21d") or 0.5) * 100.0,
+                        liquidity_score=float(
+                            row.get("rank_log_traded_value_21d") or 0.5
+                        )
+                        * 100.0,
                         explanation="Leakage-safe model; current snapshot is not a model-selection observation.",
                     )
                 )

@@ -28,20 +28,20 @@ from .model import EnsembleRegressor, LearningToRankModel
 DEFAULT_FEATURES = [
     "return_5d", "return_21d", "return_63d", "return_126d", "return_252d",
     "momentum_12_1", "volatility_21d", "volatility_63d", "distance_sma_21",
-    "distance_sma_63", "distance_sma_252", "log_volume_21d", "log_trades_21d",
+    "distance_sma_63", "distance_sma_252", "log_traded_value_21d", "log_trades_21d",
     "rank_return_21d", "rank_return_63d", "rank_return_126d", "rank_momentum_12_1",
-    "rank_volatility_63d", "rank_distance_sma_63", "rank_log_volume_21d",
+    "rank_volatility_63d", "rank_distance_sma_63", "rank_log_traded_value_21d",
     "short_term_reversal_5d", "medium_term_momentum", "residual_volatility_63d",
-    "log_traded_value_21d", "amihud_illiquidity_21d",
+    "amihud_illiquidity_21d",
     "rank_short_term_reversal_5d", "rank_medium_term_momentum",
-    "rank_residual_volatility_63d", "rank_log_traded_value_21d",
+    "rank_residual_volatility_63d",
     "rank_amihud_illiquidity_21d",
 ]
 
 
 @dataclass(frozen=True)
 class TrainingPolicy:
-    """Training-history policy selected only on development folds."""
+    """Training-history policy for targets normalized in the eligible PIT universe."""
 
     window_years: int | None = None
     half_life_years: float | None = None

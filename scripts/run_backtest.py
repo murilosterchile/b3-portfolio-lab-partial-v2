@@ -150,7 +150,7 @@ def _strategy_signals(frame: pl.DataFrame, predictions: pl.DataFrame) -> pl.Data
             + 0.10 * (1.0 - pl.col("uncertainty_percentile"))
         ).alias("signal_research_v2"),
         pl.lit(1.0).alias("signal_equal_weight"),
-        pl.col("rank_log_volume_21d").fill_null(0.0).alias("signal_liquidity"),
+        pl.col("rank_log_traded_value_21d").fill_null(0.0).alias("signal_liquidity"),
     )
 
 
@@ -501,7 +501,14 @@ def main() -> None:
     if not feature_path.exists():
         raise SystemExit("Need a monthly feature panel")
     features = pl.read_parquet(feature_path)
-    required = {"target_end_date", "execution_lag_bars", "target_horizon_bars"}
+    required = {
+        "target_end_date",
+        "target_excess_return",
+        "target_cross_sectional_rank",
+        "execution_lag_bars",
+        "target_horizon_bars",
+        "universe_eligible",
+    }
     if missing := required - set(features.columns):
         raise SystemExit(f"Feature panel predates leakage-safe protocol. Rebuild it; missing {sorted(missing)}")
     feature_names = DEFAULT_FEATURES + [name for name in FUNDAMENTAL_FEATURES if name in features.columns]

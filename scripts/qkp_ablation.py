@@ -18,7 +18,7 @@ def _liquid_prefilter_baseline(signals: pl.DataFrame, candidate_count: int) -> p
     rows: list[dict[str, object]] = []
     for signal_date in sorted(set(signals["trade_date"].to_list())):
         cross = signals.filter(pl.col("trade_date") == signal_date).sort(
-            ["rank_log_volume_21d", "signal_research_v2"], descending=[True, True]
+            ["rank_log_traded_value_21d", "signal_research_v2"], descending=[True, True]
         ).head(candidate_count)
         issuer = next(
             (name for name in ("CD_CVM", "issuer_id", "issuer_identifier") if name in cross.columns),
@@ -47,7 +47,7 @@ def _prefilter_recall(signals: pl.DataFrame, candidate_count: int) -> float:
         if "target_excess_return" not in cross.columns or cross.height < 10:
             continue
         candidate = set(
-            cross.sort("rank_log_volume_21d", descending=True)
+            cross.sort("rank_log_traded_value_21d", descending=True)
             .head(candidate_count)["ticker"]
             .to_list()
         )

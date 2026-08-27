@@ -63,7 +63,7 @@ def build_monthly_qkp_weights(
         # Investability defines the candidate universe. Alpha ranks only inside
         # that liquid/tradable set, leaving QKP room to diversify.
         cross = signals.filter(pl.col("trade_date") == signal_date).sort(
-            ["rank_log_volume_21d", "signal_research_v2"], descending=[True, True]
+            ["rank_log_traded_value_21d", "signal_research_v2"], descending=[True, True]
         ).head(candidate_count)
         requested = cross.get_column("ticker").to_list()
         covariance_result = point_in_time_covariance(
@@ -92,7 +92,9 @@ def build_monthly_qkp_weights(
                 uncertainty=float(row["prediction_uncertainty"]),
                 sector=str(row.get("sector") or "Unknown"),
                 quant_score=100.0 * float(row.get("quant_score") or 0.5),
-                liquidity_score=100.0 * float(row.get("rank_log_volume_21d") or 0.5),
+                liquidity_score=100.0 * float(
+                    row.get("rank_log_traded_value_21d") or 0.5
+                ),
                 volatility_annual=float(vol),
                 issuer_id=str(row.get("CD_CVM") or row.get("issuer_identifier") or row["ticker"]),
             )

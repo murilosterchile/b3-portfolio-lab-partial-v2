@@ -14,23 +14,28 @@ from portfolio_core.backtest import (
 )
 
 
-def _liquid_prefilter_baseline(signals: pl.DataFrame, candidate_count: int) -> pl.DataFrame:
+def _alpha_prefilter_baseline(signals: pl.DataFrame, candidate_count: int) -> pl.DataFrame:
     rows: list[dict[str, object]] = []
     for signal_date in sorted(set(signals["trade_date"].to_list())):
-        cross = signals.filter(pl.col("trade_date") == signal_date).sort(
-            ["rank_log_traded_value_21d", "signal_research_v2"], descending=[True, True]
-        ).head(candidate_count)
+        cross = signals.filter(pl.col("trade_date") == signal_date).with_columns(
+            (
+                pl.col("predicted_excess_return")
+                - 0.5 * pl.col("prediction_uncertainty")
+            ).alias("__qkp_mu")
+        ).sort(["__qkp_mu", "rank_log_traded_value_21d"], descending=[True, True])
         issuer = next(
             (name for name in ("CD_CVM", "issuer_id", "issuer_identifier") if name in cross.columns),
             None,
         )
-        if issuer is not None:
-            cross = cross.with_columns(
-                pl.coalesce(pl.col(issuer).cast(pl.Utf8), pl.col("ticker").str.slice(0, 4)).alias(
-                    "__issuer"
-                )
-            ).unique(subset="__issuer", keep="first", maintain_order=True)
-        selected = cross.sort("signal_research_v2", descending=True).head(10)
+        issuer_expr = (
+            pl.coalesce(pl.col(issuer).cast(pl.Utf8), pl.col("ticker").str.slice(0, 4))
+            if issuer is not None
+            else pl.col("ticker").str.slice(0, 4)
+        )
+        cross = cross.with_columns(issuer_expr.alias("__issuer")).unique(
+            subset="__issuer", keep="first", maintain_order=True
+        )
+        selected = cross.head(candidate_count).head(10)
         if selected.is_empty():
             continue
         weight = 1.0 / selected.height
@@ -47,7 +52,12 @@ def _prefilter_recall(signals: pl.DataFrame, candidate_count: int) -> float:
         if "target_excess_return" not in cross.columns or cross.height < 10:
             continue
         candidate = set(
-            cross.sort("rank_log_traded_value_21d", descending=True)
+            cross.with_columns(
+                (
+                    pl.col("predicted_excess_return")
+                    - 0.5 * pl.col("prediction_uncertainty")
+                ).alias("__qkp_mu")
+            ).sort("__qkp_mu", descending=True)
             .head(candidate_count)["ticker"]
             .to_list()
         )
@@ -71,7 +81,7 @@ def main() -> None:
     output.mkdir(parents=True, exist_ok=True)
     comparisons: dict[str, object] = {}
     for candidate_count in (20, 30, 50, 75):
-        baseline = _liquid_prefilter_baseline(signals, candidate_count)
+        baseline = _alpha_prefilter_baseline(signals, candidate_count)
         equal_weights, diagnostics = build_monthly_qkp_weights(
             prices,
             signals,
@@ -116,11 +126,16 @@ def main() -> None:
             ),
         }
     report = {
-        "candidate_rule": "PIT liquidity/tradability first; alpha ranks only within candidate set",
+        "sample": "development only",
+        "candidate_rule": (
+            "PIT investability gate, then calibrated economic alpha first; issuer-aware capacity"
+        ),
         "candidate_counts": [20, 30, 50, 75],
         "qkp_parameters": {
             "risk_aversion": 0.7,
             "uncertainty_penalty": 0.5,
+            "expected_return_horizon_bars": 21,
+            "covariance_horizon_bars": 21,
             "min_positions": 6,
             "max_positions": 10,
         },

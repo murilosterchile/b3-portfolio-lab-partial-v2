@@ -11,12 +11,25 @@ from portfolio_core.data_quality import DataQualityError, validate_finite_array,
 
 @dataclass(frozen=True)
 class ExecutionCostModel:
+    """One-way execution-cost assumptions, all stated independently.
+
+    ``fee_bps`` is charged on executed one-way notional. A bid/ask observation
+    is a ``quoted_full_spread_bps``; crossing once costs half of it. The ADV
+    fallback tiers are already one-way half-spreads (not full spreads and not
+    all-in costs). ``impact_bps`` is the coefficient of ``sqrt(Q / ADV)`` in
+    the registered model and excludes both fees and spread.
+    """
+
     mode: Literal["fixed_bps", "liquidity"] = "fixed_bps"
     fee_bps: float = 0.0
     participation_cap: float = 0.05
-    impact_coefficient_bps: float = 10.0
+    impact_bps: float = 10.0
+    impact_model: Literal["sqrt_participation_bps", "volatility_scaled"] = (
+        "sqrt_participation_bps"
+    )
+    volatility_impact_y: float = 0.5
     adv_tier_limits: tuple[float, float] = (1_000_000.0, 10_000_000.0)
-    adv_tier_spread_bps: tuple[float, float, float] = (30.0, 15.0, 8.0)
+    adv_tier_one_way_half_spread_bps: tuple[float, float, float] = (30.0, 15.0, 8.0)
     use_eod_quoted_spread: bool = False
 
 
@@ -57,6 +70,17 @@ class BacktestSummary:
     spread_cost: float = 0.0
     impact_cost: float = 0.0
     execution_delay_bars: int = 1
+    gross_end_value: float = 0.0
+    gross_total_return: float = 0.0
+    gross_cagr: float = 0.0
+    gross_annualized_volatility: float = 0.0
+    gross_sharpe: float = 0.0
+    gross_raw_sharpe: float = 0.0
+    relative_cagr: float = 0.0
+    requested_notional: float = 0.0
+    filled_notional: float = 0.0
+    rejected_notional: float = 0.0
+    fill_ratio: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -99,6 +123,8 @@ def _metrics(
     execution_delay_bars: int = 1,
     risk_free_returns: np.ndarray | None = None,
     cost_totals: dict[str, float] | None = None,
+    gross_equity: np.ndarray | None = None,
+    execution_totals: dict[str, float] | None = None,
 ) -> BacktestSummary:
     if len(equity) < 2:
         raise ValueError("Backtest has insufficient observations")
@@ -125,7 +151,38 @@ def _metrics(
     sharpe = annualized_excess_mean / excess_vol if excess_vol > 1e-12 else 0.0
     risk_free_wealth = float(np.prod(1.0 + risk_free))
     risk_free_cagr = risk_free_wealth ** (1.0 / years) - 1.0
+    relative_wealth = (equity[-1] / equity[0]) / risk_free_wealth
+    relative_cagr = float(relative_wealth ** (1.0 / years) - 1.0)
     costs = cost_totals or {}
+    gross = equity if gross_equity is None else np.asarray(gross_equity, dtype=float)
+    validate_finite_array(gross, context="gross equity curve")
+    gross_total_return = float(gross[-1] / gross[0] - 1.0)
+    gross_cagr = float((gross[-1] / gross[0]) ** (1.0 / years) - 1.0)
+    gross_returns = gross[1:] / gross[:-1] - 1.0
+    gross_vol = (
+        float(np.std(gross_returns, ddof=1) * np.sqrt(252))
+        if len(gross_returns) > 1
+        else 0.0
+    )
+    gross_raw_sharpe = (
+        float(np.mean(gross_returns) * 252) / gross_vol if gross_vol > 1e-12 else 0.0
+    )
+    gross_excess = gross_returns - risk_free
+    gross_excess_vol = (
+        float(np.std(gross_excess, ddof=1) * np.sqrt(252))
+        if len(gross_excess) > 1
+        else 0.0
+    )
+    gross_sharpe = (
+        float(np.mean(gross_excess) * 252) / gross_excess_vol
+        if gross_excess_vol > 1e-12
+        else 0.0
+    )
+    execution = execution_totals or {}
+    requested_notional = float(execution.get("requested_notional", 0.0))
+    filled_notional = float(execution.get("filled_notional", requested_notional))
+    rejected_notional = max(0.0, requested_notional - filled_notional)
+    fill_ratio = filled_notional / requested_notional if requested_notional > 0 else 1.0
     running_max = np.maximum.accumulate(equity)
     drawdowns = equity / running_max - 1.0
     return BacktestSummary(
@@ -136,7 +193,7 @@ def _metrics(
         annualized_volatility=vol,
         sharpe=sharpe,
         raw_sharpe=raw_sharpe,
-        excess_cagr=cagr - risk_free_cagr,
+        excess_cagr=relative_cagr,
         risk_free_cagr=risk_free_cagr,
         max_drawdown=float(np.min(drawdowns)),
         turnover=float(turnover),
@@ -149,6 +206,17 @@ def _metrics(
         spread_cost=float(costs.get("spread", 0.0)),
         impact_cost=float(costs.get("impact", 0.0)),
         execution_delay_bars=execution_delay_bars,
+        gross_end_value=float(gross[-1]),
+        gross_total_return=gross_total_return,
+        gross_cagr=gross_cagr,
+        gross_annualized_volatility=gross_vol,
+        gross_sharpe=gross_sharpe,
+        gross_raw_sharpe=gross_raw_sharpe,
+        relative_cagr=relative_cagr,
+        requested_notional=requested_notional,
+        filled_notional=filled_notional,
+        rejected_notional=rejected_notional,
+        fill_ratio=fill_ratio,
     )
 
 
@@ -180,9 +248,16 @@ def _liquidity_cost(
     *,
     capital: float,
     adv: np.ndarray,
-    quoted_spread_bps: np.ndarray,
     model: ExecutionCostModel,
+    quoted_full_spread_bps: np.ndarray | None = None,
+    sigma_daily: np.ndarray | None = None,
+    quoted_spread_bps: np.ndarray | None = None,
 ) -> tuple[np.ndarray, dict[str, float], np.ndarray]:
+    if quoted_full_spread_bps is None:
+        # Compatibility alias; source bid/ask observations are full spreads.
+        quoted_full_spread_bps = quoted_spread_bps
+    if quoted_full_spread_bps is None:
+        quoted_full_spread_bps = np.full_like(adv, np.nan, dtype=float)
     delta = requested - current
     participation = np.full_like(delta, np.nan, dtype=float)
     finite_adv = np.isfinite(adv) & (adv > 0)
@@ -200,19 +275,37 @@ def _liquidity_cost(
     order_fraction = np.abs(executed - current)
     participation[finite_adv] = order_fraction[finite_adv] * capital / adv[finite_adv]
     limits = model.adv_tier_limits
-    tier_spread = np.select(
+    tier_half_spread_bps = np.select(
         [adv <= limits[0], adv <= limits[1]],
-        model.adv_tier_spread_bps[:2],
-        default=model.adv_tier_spread_bps[2],
+        model.adv_tier_one_way_half_spread_bps[:2],
+        default=model.adv_tier_one_way_half_spread_bps[2],
     ).astype(float)
     if model.use_eod_quoted_spread:
-        spread_bps = np.where(np.isfinite(quoted_spread_bps), quoted_spread_bps, tier_spread)
+        one_way_half_spread_bps = np.where(
+            np.isfinite(quoted_full_spread_bps),
+            quoted_full_spread_bps / 2.0,
+            tier_half_spread_bps,
+        )
     else:
-        spread_bps = tier_spread
+        one_way_half_spread_bps = tier_half_spread_bps
     fees = float(np.sum(order_fraction) * model.fee_bps / 10_000.0)
-    spread = float(np.sum(order_fraction * spread_bps) / 10_000.0)
-    impact_bps = model.impact_coefficient_bps * np.sqrt(np.nan_to_num(participation, nan=0.0))
-    impact = float(np.sum(order_fraction * impact_bps) / 10_000.0)
+    spread = float(np.sum(order_fraction * one_way_half_spread_bps) / 10_000.0)
+    root_participation = np.sqrt(np.nan_to_num(participation, nan=0.0))
+    if model.impact_model == "volatility_scaled":
+        if sigma_daily is None:
+            raise DataQualityError("volatility-scaled impact requires point-in-time daily volatility")
+        sigma = np.asarray(sigma_daily, dtype=float)
+        traded = order_fraction > 1e-15
+        if np.any(traded & (~np.isfinite(sigma) | (sigma < 0))):
+            raise DataQualityError(
+                "volatility-scaled impact requires finite point-in-time daily volatility"
+            )
+        # Pre-registered challenger: Y * sigma_daily * sqrt(Q / ADV).
+        impact_rate = model.volatility_impact_y * np.nan_to_num(sigma, nan=0.0) * root_participation
+        impact = float(np.sum(order_fraction * impact_rate))
+    else:
+        realized_impact_bps = model.impact_bps * root_participation
+        impact = float(np.sum(order_fraction * realized_impact_bps) / 10_000.0)
     return executed, {"fees": fees, "spread": spread, "impact": impact}, participation
 
 
@@ -274,6 +367,11 @@ def run_monthly_topk_backtest_detailed(
         raise ValueError("max_stale_valuation_sessions must be positive")
     if config.cost_model.mode not in {"fixed_bps", "liquidity"}:
         raise ValueError("unsupported cost model")
+    if config.cost_model.impact_model not in {
+        "sqrt_participation_bps",
+        "volatility_scaled",
+    }:
+        raise ValueError("unsupported impact model")
     if not 0 < config.cost_model.participation_cap <= 1:
         raise ValueError("participation_cap must be in (0, 1]")
     required_signals = {"trade_date", "ticker", score_column}
@@ -342,7 +440,8 @@ def run_monthly_topk_backtest_detailed(
     observed = close_frame.select(pl.col(tickers).is_not_null()).to_numpy()
     close = close_frame.select(tickers).fill_null(strategy="forward").to_numpy()
     adv = np.full_like(close, np.nan)
-    quoted_spread_bps = np.full_like(close, np.nan)
+    quoted_full_spread_bps = np.full_like(close, np.nan)
+    sigma_daily = np.full_like(close, np.nan)
     if config.cost_model.mode == "liquidity":
         if "traded_value_brl" in used_prices.columns and "volume" in used_prices.columns:
             traded_value = pl.coalesce("traded_value_brl", "volume")
@@ -352,12 +451,23 @@ def run_monthly_topk_backtest_detailed(
             traded_value = pl.col("volume")
         else:
             raise DataQualityError("liquidity cost model requires B3 traded value in BRL")
-        liquidity_long = used_prices.sort(["ticker", "trade_date"]).with_columns(
-            traded_value
-            .rolling_mean(window_size=21, min_samples=5)
-            .shift(1)
-            .over("ticker")
-            .alias("__adv")
+        liquidity_long = (
+            used_prices.sort(["ticker", "trade_date"])
+            .with_columns(
+                traded_value
+                .rolling_mean(window_size=21, min_samples=5)
+                .shift(1)
+                .over("ticker")
+                .alias("__adv"),
+                pl.col(price_column).pct_change().over("ticker").alias("__daily_return"),
+            )
+            .with_columns(
+                pl.col("__daily_return")
+                .rolling_std(window_size=21, min_samples=5)
+                .shift(1)
+                .over("ticker")
+                .alias("__sigma_daily")
+            )
         )
         if {"best_bid", "best_ask"} <= set(used_prices.columns):
             liquidity_long = liquidity_long.with_columns(
@@ -371,23 +481,33 @@ def run_monthly_topk_backtest_detailed(
                     * 10_000.0
                 )
                 .otherwise(None)
-                .alias("__spread_bps")
+                .alias("__quoted_full_spread_bps")
             )
         else:
             liquidity_long = liquidity_long.with_columns(
-                pl.lit(None, dtype=pl.Float64).alias("__spread_bps")
+                pl.lit(None, dtype=pl.Float64).alias("__quoted_full_spread_bps")
             )
         adv_frame = liquidity_long.select("trade_date", "ticker", "__adv").pivot(
             index="trade_date", on="ticker", values="__adv"
         )
-        spread_frame = liquidity_long.select("trade_date", "ticker", "__spread_bps").pivot(
-            index="trade_date", on="ticker", values="__spread_bps"
+        spread_frame = liquidity_long.select(
+            "trade_date", "ticker", "__quoted_full_spread_bps"
+        ).pivot(
+            index="trade_date", on="ticker", values="__quoted_full_spread_bps"
+        )
+        sigma_frame = liquidity_long.select(
+            "trade_date", "ticker", "__sigma_daily"
+        ).pivot(
+            index="trade_date", on="ticker", values="__sigma_daily"
         )
         adv = close_frame.select("trade_date").join(
             adv_frame, on="trade_date", how="left", validate="1:1"
         ).select(tickers).to_numpy()
-        quoted_spread_bps = close_frame.select("trade_date").join(
+        quoted_full_spread_bps = close_frame.select("trade_date").join(
             spread_frame, on="trade_date", how="left", validate="1:1"
+        ).select(tickers).to_numpy()
+        sigma_daily = close_frame.select("trade_date").join(
+            sigma_frame, on="trade_date", how="left", validate="1:1"
         ).select(tickers).to_numpy()
     if has_distribution_number:
         distribution_frame = (
@@ -479,10 +599,12 @@ def run_monthly_topk_backtest_detailed(
 
     if not rebalance_lookup:
         raise DataQualityError("no signal has a future executable market date")
-    first_signal_date = min(row["signal_date"] for row in selection_rows) if selection_rows else min(rebalance_lookup)
+    first_signal_date = min(rebalance_signal_dates.values())
     start_index = date_to_index[first_signal_date]
     capital = config.initial_capital
+    gross_capital = config.initial_capital
     equity = [capital]
+    gross_equity = [gross_capital]
     portfolio_daily: list[float] = []
     total_turnover = 0.0
     excluded_transitions: set[tuple[str, object, object]] = set()
@@ -494,6 +616,7 @@ def run_monthly_topk_backtest_detailed(
     realized_risk_free: list[float] = []
     cost_rows: list[dict[str, object]] = []
     cost_totals = {"fees": 0.0, "spread": 0.0, "impact": 0.0}
+    execution_totals = {"requested_notional": 0.0, "filled_notional": 0.0}
 
     for index in range(start_index + 1, len(dates)):
         previous_date = dates[index - 1]
@@ -539,6 +662,7 @@ def run_monthly_topk_backtest_detailed(
         if not np.isfinite(day_return) or day_return <= -1.0:
             raise DataQualityError(f"invalid portfolio return {day_return} for {previous_date} -> {current_date}")
         capital *= 1.0 + day_return
+        gross_capital *= 1.0 + day_return
         growth = 1.0 + day_return
         drifted = np.zeros_like(weights)
         drifted[active] = weights[active] * (1.0 + asset_returns[active]) / growth
@@ -575,7 +699,8 @@ def run_monthly_topk_backtest_detailed(
                     requested_target,
                     capital=capital,
                     adv=adv[index],
-                    quoted_spread_bps=quoted_spread_bps[index],
+                    quoted_full_spread_bps=quoted_full_spread_bps[index],
+                    sigma_daily=sigma_daily[index],
                     model=config.cost_model,
                 )
                 capped = np.abs(target - requested_target) > 1e-12
@@ -589,6 +714,12 @@ def run_monthly_topk_backtest_detailed(
                         }
                     )
             target_cash = max(0.0, 1.0 - float(target.sum()))
+            execution_totals["requested_notional"] += float(
+                np.abs(requested_target - weights).sum() * capital
+            )
+            execution_totals["filled_notional"] += float(
+                np.abs(target - weights).sum() * capital
+            )
             turnover = _one_way_turnover(weights, target, current_cash=cash_weight, target_cash=target_cash)
             if config.cost_model.mode == "fixed_bps":
                 component_costs["fees"] = turnover * config.transaction_cost_bps / 10_000.0
@@ -620,6 +751,7 @@ def run_monthly_topk_backtest_detailed(
         portfolio_daily.append(net_day_return)
         realized_risk_free.append(rf_return)
         equity.append(capital)
+        gross_equity.append(gross_capital)
 
     equity_array = np.asarray(equity)
     daily_array = np.asarray(portfolio_daily)
@@ -633,16 +765,24 @@ def run_monthly_topk_backtest_detailed(
         execution_delay_bars=config.execution_delay_bars,
         risk_free_returns=np.asarray(realized_risk_free),
         cost_totals=cost_totals,
+        gross_equity=np.asarray(gross_equity),
+        execution_totals=execution_totals,
     )
     curve = pl.DataFrame(
         {
             "trade_date": dates[start_index:],
             "portfolio_value": equity_array,
+            "gross_portfolio_value": np.asarray(gross_equity),
             "net_return": [None, *portfolio_daily],
             "risk_free_return": [None, *realized_risk_free],
         }
     ).with_columns(
         pl.lit(price_column).alias("price_basis"),
+        (
+            pl.col("gross_portfolio_value")
+            / pl.col("gross_portfolio_value").shift(1)
+            - 1.0
+        ).alias("gross_return"),
         (pl.col("net_return") - pl.col("risk_free_return")).alias("excess_return"),
     )
     selections = pl.DataFrame(selection_rows) if selection_rows else pl.DataFrame(

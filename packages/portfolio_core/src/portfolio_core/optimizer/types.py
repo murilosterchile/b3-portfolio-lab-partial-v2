@@ -19,6 +19,8 @@ class QKPInstance:
     sectors: tuple[str, ...] | None = None
     sector_max_count: dict[str, int] = field(default_factory=dict)
     issuer_ids: tuple[str, ...] | None = None
+    expected_return_horizon_bars: int | None = None
+    covariance_horizon_bars: int | None = None
 
     def __post_init__(self) -> None:
         n = len(self.names)
@@ -44,6 +46,23 @@ class QKPInstance:
             raise ValueError("sectors must match item count")
         if self.issuer_ids is not None and len(self.issuer_ids) != n:
             raise ValueError("issuer_ids must match item count")
+        horizons = (self.expected_return_horizon_bars, self.covariance_horizon_bars)
+        if (horizons[0] is None) != (horizons[1] is None):
+            raise ValueError("expected-return and covariance horizons must be provided together")
+        if horizons[0] is not None:
+            if horizons[0] < 1 or horizons[1] < 1:
+                raise ValueError("QKP horizons must be positive bar counts")
+            if horizons[0] != horizons[1]:
+                raise ValueError("expected-return and covariance horizons must match")
+
+    def objective_value(self, selected_indices: tuple[int, ...]) -> float:
+        """Evaluate the QKP objective in the unscaled economic-return unit."""
+        if not selected_indices:
+            return 0.0
+        selected = list(selected_indices)
+        value = float(self.linear_values[selected].sum())
+        value += float(np.triu(self.pair_values[np.ix_(selected, selected)], k=1).sum())
+        return value
 
 
 @dataclass(frozen=True)

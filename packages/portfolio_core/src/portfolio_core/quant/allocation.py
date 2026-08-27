@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 from scipy.cluster.hierarchy import leaves_list, linkage
-from scipy.optimize import minimize
+from scipy.optimize import linprog, minimize
 from scipy.spatial.distance import squareform
 
 from .risk import covariance_to_correlation
@@ -116,15 +116,36 @@ def cost_aware_allocation(
                 ),
             }
         )
-    x0 = np.full(n, min_weight, dtype=float)
-    remaining = 1.0 - float(x0.sum())
-    while remaining > 1e-12:
-        active = np.flatnonzero(caps - x0 > 1e-12)
-        if len(active) == 0:
-            raise ValueError("liquidity/weight caps cannot form a fully invested portfolio")
-        increment = min(remaining / len(active), float(np.min(caps[active] - x0[active])))
-        x0[active] += increment
-        remaining = 1.0 - float(x0.sum())
+    linear_inequalities: list[np.ndarray] = []
+    linear_limits: list[float] = []
+    if sectors is not None:
+        for sector in sorted(set(sectors)):
+            linear_inequalities.append(
+                np.asarray([value == sector for value in sectors], dtype=float)
+            )
+            linear_limits.append(
+                float(max_sector_weight.get(sector, 1.0))
+                if isinstance(max_sector_weight, dict)
+                else float(max_sector_weight)
+            )
+    if issuer_ids is not None:
+        for issuer in sorted(set(issuer_ids)):
+            linear_inequalities.append(
+                np.asarray([value == issuer for value in issuer_ids], dtype=float)
+            )
+            linear_limits.append(float(max_issuer_weight))
+    feasible = linprog(
+        np.zeros(n),
+        A_ub=np.asarray(linear_inequalities) if linear_inequalities else None,
+        b_ub=np.asarray(linear_limits) if linear_limits else None,
+        A_eq=np.ones((1, n)),
+        b_eq=np.ones(1),
+        bounds=bounds,
+        method="highs",
+    )
+    if not feasible.success:
+        raise ValueError("allocation constraints cannot form a fully invested portfolio")
+    x0 = np.asarray(feasible.x, dtype=float)
     result = minimize(
         lambda w: float(w @ covariance @ w + turnover_penalty * np.abs(w - previous).sum()),
         x0,

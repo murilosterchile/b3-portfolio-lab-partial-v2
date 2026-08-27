@@ -15,7 +15,6 @@ from portfolio_core.backtest import (
     WeightedBacktestConfig,
     build_monthly_qkp_weights,
     build_monthly_risk_benchmark_weights,
-    run_monthly_topk_backtest,
     run_monthly_topk_backtest_detailed,
     run_monthly_weighted_backtest_detailed,
 )
@@ -37,6 +36,7 @@ from portfolio_core.ml.walk_forward import (
 )
 from portfolio_core.quant.factors import composite_quant_score, learn_factor_sleeve_weights
 from portfolio_core.research import evaluate_acceptance_gates, write_experiment_record
+from portfolio_core.research.gates import evaluate_benchmark_fairness
 from portfolio_core.research.statistics import (
     cagr_from_periodic_returns,
     deflated_sharpe_ratio,
@@ -44,6 +44,41 @@ from portfolio_core.research.statistics import (
     sharpe_from_periodic_returns,
 )
 from portfolio_core.research.verification import verify_test_manifest
+
+
+INITIAL_CAPITAL = 100_000.0
+EXECUTION_DELAY_BARS = 1
+PARTICIPATION_CAP = 0.02
+FILL_POLICY = "next_observed_close_with_participation_cap_and_partial_fills"
+REGISTERED_COST_MODEL = ExecutionCostModel(
+    mode="liquidity",
+    fee_bps=3.0,
+    participation_cap=PARTICIPATION_CAP,
+    impact_bps=10.0,
+    use_eod_quoted_spread=True,
+)
+VOLATILITY_SCALED_IMPACT_STRESS = ExecutionCostModel(
+    mode="liquidity",
+    fee_bps=3.0,
+    participation_cap=PARTICIPATION_CAP,
+    impact_model="volatility_scaled",
+    volatility_impact_y=0.5,
+    use_eod_quoted_spread=True,
+)
+COST_SCENARIOS = {
+    "registered_liquidity": REGISTERED_COST_MODEL,
+    "stress_volatility_scaled_impact_y_0_5": VOLATILITY_SCALED_IMPACT_STRESS,
+}
+STRATEGY_COST_TABLE_SEMANTICS = {
+    "gross": "gross total return before execution costs on the realized fill path",
+    "fees": "cumulative one-way fees in BRL divided by initial capital",
+    "spread": "cumulative one-way half-spread cost in BRL divided by initial capital",
+    "impact": "cumulative one-way market impact in BRL divided by initial capital",
+    "net": "net total return after fees, spread, and impact",
+    "turnover": "cumulative one-way turnover (half-L1 including cash)",
+    "fill_ratio": "filled notional / requested notional",
+    "rejected_notional": "requested minus filled notional in BRL",
+}
 
 
 def _load_prices(data_dir: Path) -> tuple[pl.DataFrame, str]:
@@ -107,10 +142,12 @@ def _differential_ci(
     strategy = _monthly_returns(pl.read_parquet(strategy_path)).rename({"return": "strategy"})
     reference = _monthly_returns(pl.read_parquet(benchmark_path)).rename({"return": "benchmark"})
     aligned = strategy.join(reference, on="month", how="inner").with_columns(
-        (pl.col("strategy") - pl.col("benchmark")).alias("excess")
+        ((1.0 + pl.col("strategy")) / (1.0 + pl.col("benchmark")) - 1.0).alias(
+            "relative_return"
+        )
     )
     return moving_block_bootstrap_ci(
-        aligned["excess"].to_numpy(),
+        aligned["relative_return"].to_numpy(),
         cagr_from_periodic_returns,
         block_length=block_length,
         n_bootstrap=2000,
@@ -249,7 +286,11 @@ def _run_reference_benchmarks(
         detail = run_monthly_weighted_backtest_detailed(
             benchmark_prices,
             weights,
-            config=WeightedBacktestConfig(transaction_cost_bps=0.0),
+            config=WeightedBacktestConfig(
+                transaction_cost_bps=0.0,
+                initial_capital=INITIAL_CAPITAL,
+                execution_delay_bars=EXECUTION_DELAY_BARS,
+            ),
             risk_free_returns=risk_free_returns if name == "ibov_total_return" else None,
         )
         target = data_dir / "gold" / "backtests" / f"{prefix}_{name}"
@@ -274,62 +315,27 @@ def _run_strategies(
     price_source: str,
     methodology: str,
     risk_free_returns: pl.DataFrame | None,
-) -> dict[str, dict[str, object]]:
+) -> tuple[dict[str, dict[str, object]], list[dict[str, object]], dict[str, object]]:
     if "target_end_date" not in signals.columns:
         raise DataQualityError("strategy signals require target_end_date to bound evaluation")
     evaluation_end = signals["target_end_date"].max()
     prices = prices.filter(pl.col("trade_date") <= pl.lit(evaluation_end))
-    liquidity_cost = ExecutionCostModel(
-        mode="liquidity", fee_bps=3.0, participation_cap=0.02, impact_coefficient_bps=10.0
-    )
     strategies = {
-        "universe_1n": ("signal_equal_weight", BacktestConfig(top_k=100_000, transaction_cost_bps=15.0)),
-        "top_liquidity_equal_weight": ("signal_liquidity", BacktestConfig(top_k=50, transaction_cost_bps=15.0, selection_buffer=10)),
-        "ml_top10": ("signal_ml", BacktestConfig(top_k=10, transaction_cost_bps=15.0)),
-        "momentum_top10": ("signal_momentum", BacktestConfig(top_k=10, transaction_cost_bps=15.0, selection_buffer=5)),
-        "low_volatility_top10": ("signal_low_volatility", BacktestConfig(top_k=10, transaction_cost_bps=15.0, selection_buffer=5)),
-        "quality_top10": ("signal_quality", BacktestConfig(top_k=10, transaction_cost_bps=15.0, selection_buffer=5)),
-        "multifactor_top10": ("signal_quant", BacktestConfig(top_k=10, transaction_cost_bps=15.0, selection_buffer=5)),
-        "multifactor_learned_top10": ("signal_quant_learned", BacktestConfig(top_k=10, transaction_cost_bps=15.0, selection_buffer=5)),
-        "research_v2": (
-            "signal_research_v2",
-            BacktestConfig(top_k=10, selection_buffer=5, cost_model=liquidity_cost),
-        ),
+        "universe_1n": ("signal_equal_weight", 100_000, 0),
+        "top_liquidity_equal_weight": ("signal_liquidity", 50, 10),
+        "ml_top10": ("signal_ml", 10, 0),
+        "momentum_top10": ("signal_momentum", 10, 5),
+        "low_volatility_top10": ("signal_low_volatility", 10, 5),
+        "quality_top10": ("signal_quality", 10, 5),
+        "multifactor_top10": ("signal_quant", 10, 5),
+        "multifactor_learned_top10": ("signal_quant_learned", 10, 5),
+        "research_v2": ("signal_research_v2", 10, 5),
     }
     if signals["quality_score"].n_unique() <= 1:
         strategies.pop("quality_top10")
-    results: dict[str, dict[str, object]] = {}
-    for name, (column, config) in strategies.items():
-        detail = run_monthly_topk_backtest_detailed(
-            prices,
-            signals,
-            score_column=column,
-            config=config,
-            risk_free_returns=risk_free_returns,
-        )
-        curve, summary = detail.curve, detail.summary
-        metadata = {
-            "strategy": name,
-            "score_column": column,
-            "price_source": price_source,
-            "selection_buffer": config.selection_buffer,
-            "transaction_cost_bps": config.transaction_cost_bps,
-            "cost_model": asdict(config.cost_model),
-            "sharpe_basis": "excess_vs_cdi" if risk_free_returns is not None else "raw_missing_cdi",
-            "execution_delay_bars": config.execution_delay_bars,
-            "methodology": methodology,
-        }
-        _write_result(data_dir, f"{prefix}_{name}", curve, summary, metadata=metadata)
-        detail_dir = data_dir / "gold" / "backtests" / f"{prefix}_{name}"
-        detail.selections.write_parquet(detail_dir / "selections.parquet", compression="zstd")
-        detail.contributions.write_parquet(detail_dir / "contributions.parquet", compression="zstd")
-        detail.rejected_orders.write_parquet(detail_dir / "rejected_orders.parquet", compression="zstd")
-        detail.costs.write_parquet(detail_dir / "costs.parquet", compression="zstd")
-        results[name] = asdict(summary)
-        print(
-            f"{prefix}/{name:28s} excess_CAGR={summary.excess_cagr:8.2%} excess_Sharpe={summary.sharpe:7.3f} "
-            f"MDD={summary.max_drawdown:8.2%} turnover/y={summary.annualized_turnover:6.2f}x"
-        )
+
+    weighted_targets: dict[str, pl.DataFrame] = {}
+    weighted_metadata: dict[str, dict[str, object]] = {}
     qkp_allocations = {
         "ml_qkp_ew": "equal_weight",
         "ml_qkp_inverse_vol": "inverse_vol",
@@ -337,139 +343,187 @@ def _run_strategies(
         "ml_qkp_cost_aware_minvar": "cost_aware_minvar",
     }
     for name, allocation in qkp_allocations.items():
-        weights, solver_diagnostics = build_monthly_qkp_weights(
-            prices, signals, allocation=allocation
-        )
-        if weights.is_empty():
-            results[name] = {"status": "insufficient_point_in_time_covariance"}
-            continue
-        detail = run_monthly_weighted_backtest_detailed(
+        weights, diagnostics = build_monthly_qkp_weights(prices, signals, allocation=allocation)
+        if not weights.is_empty():
+            weighted_targets[name] = weights
+            weighted_metadata[name] = {
+                "allocation": allocation,
+                "solver_diagnostics": diagnostics,
+            }
+    for name, allocation in {
+        "risk_only_hrp": "hrp",
+        "risk_only_minvar": "minvar",
+    }.items():
+        risk_weights = build_monthly_risk_benchmark_weights(
             prices,
-            weights,
-            config=WeightedBacktestConfig(transaction_cost_bps=15.0),
-            risk_free_returns=risk_free_returns,
+            signals,
+            allocation=allocation,
+            estimator="ledoit_wolf",
+            candidate_count=50,
         )
-        target = data_dir / "gold" / "backtests" / f"{prefix}_{name}"
-        target.mkdir(parents=True, exist_ok=True)
-        detail.curve.write_parquet(target / "equity_curve.parquet", compression="zstd")
-        weights.write_parquet(target / "target_weights.parquet", compression="zstd")
-        solver_diagnostics.write_parquet(target / "solver_diagnostics.parquet", compression="zstd")
-        detail.rejected_orders.write_parquet(target / "rejected_orders.parquet", compression="zstd")
-        detail.costs.write_parquet(target / "costs.parquet", compression="zstd")
-        payload = asdict(detail.summary)
-        (target / "summary.json").write_text(
-            json.dumps({**payload, "strategy": name, "allocation": allocation, "methodology": methodology}, indent=2),
-            encoding="utf-8",
-        )
-        results[name] = payload
-        print(
-            f"{prefix}/{name:28s} excess_CAGR={detail.summary.excess_cagr:8.2%} "
-            f"excess_Sharpe={detail.summary.sharpe:7.3f} MDD={detail.summary.max_drawdown:8.2%}"
+        if not risk_weights.is_empty():
+            weighted_targets[name] = risk_weights
+            weighted_metadata[name] = {"allocation": allocation}
+    required_weighted = set(qkp_allocations) | {"risk_only_hrp", "risk_only_minvar"}
+    if missing_weighted := required_weighted - set(weighted_targets):
+        raise DataQualityError(
+            "cannot build every comparable QKP/HRP/minvar strategy: "
+            f"{sorted(missing_weighted)}"
         )
 
-    risk_weights = build_monthly_risk_benchmark_weights(
-        prices, signals, allocation="hrp", estimator="ledoit_wolf", candidate_count=50
-    )
-    if risk_weights.is_empty():
-        results["risk_only_hrp"] = {"status": "insufficient_point_in_time_covariance"}
-    else:
-        detail = run_monthly_weighted_backtest_detailed(
-            prices,
-            risk_weights,
-            config=WeightedBacktestConfig(transaction_cost_bps=15.0),
-            risk_free_returns=risk_free_returns,
+    common_dates = set(signals.get_column("trade_date").to_list())
+    for weights in weighted_targets.values():
+        common_dates &= set(weights.get_column("trade_date").to_list())
+    if not common_dates:
+        raise DataQualityError("B3 strategies have no common rebalance dates")
+    ordered_common_dates = sorted(common_dates)
+    comparable_signals = signals.filter(pl.col("trade_date").is_in(ordered_common_dates))
+    weighted_targets = {
+        name: weights.filter(pl.col("trade_date").is_in(ordered_common_dates))
+        for name, weights in weighted_targets.items()
+    }
+
+    results: dict[str, dict[str, object]] = {}
+    comparison_rows: list[dict[str, object]] = []
+    fairness_records: list[dict[str, object]] = []
+
+    def record_result(name: str, scenario: str, detail: object) -> None:
+        summary = detail.summary
+        if scenario == "registered_liquidity":
+            results[name] = asdict(summary)
+        comparison_rows.append(
+            {
+                "strategy": name,
+                "cost": scenario,
+                "gross": summary.gross_total_return,
+                "fees": summary.fees_cost / summary.start_value,
+                "spread": summary.spread_cost / summary.start_value,
+                "impact": summary.impact_cost / summary.start_value,
+                "net": summary.total_return,
+                "turnover": summary.turnover,
+                "fill_ratio": summary.fill_ratio,
+                "rejected_notional": summary.rejected_notional,
+            }
         )
-        target = data_dir / "gold" / "backtests" / f"{prefix}_risk_only_hrp"
-        target.mkdir(parents=True, exist_ok=True)
-        detail.curve.write_parquet(target / "equity_curve.parquet", compression="zstd")
-        risk_weights.write_parquet(target / "target_weights.parquet", compression="zstd")
-        detail.rejected_orders.write_parquet(target / "rejected_orders.parquet", compression="zstd")
-        detail.costs.write_parquet(target / "costs.parquet", compression="zstd")
-        results["risk_only_hrp"] = asdict(detail.summary)
+        fairness_records.append(
+            {
+                "strategy": name,
+                "cost_scenario": scenario,
+                "initial_capital": summary.start_value,
+                "evaluation_start": detail.curve["trade_date"].min(),
+                "evaluation_end": detail.curve["trade_date"].max(),
+                "rebalance_dates": tuple(ordered_common_dates),
+                "rebalance_periods": summary.rebalance_periods,
+                "execution_delay_bars": summary.execution_delay_bars,
+                "participation_cap": COST_SCENARIOS[scenario].participation_cap,
+                "fill_policy": FILL_POLICY,
+            }
+        )
+
+    for scenario, cost_model in COST_SCENARIOS.items():
+        suffix = "" if scenario == "registered_liquidity" else f"__{scenario}"
+        for name, (column, top_k, selection_buffer) in strategies.items():
+            config = BacktestConfig(
+                top_k=top_k,
+                selection_buffer=selection_buffer,
+                initial_capital=INITIAL_CAPITAL,
+                execution_delay_bars=EXECUTION_DELAY_BARS,
+                cost_model=cost_model,
+            )
+            detail = run_monthly_topk_backtest_detailed(
+                prices,
+                comparable_signals,
+                score_column=column,
+                config=config,
+                risk_free_returns=risk_free_returns,
+            )
+            target_name = f"{prefix}_{name}{suffix}"
+            metadata = {
+                "strategy": name,
+                "cost_scenario": scenario,
+                "score_column": column,
+                "price_source": price_source,
+                "selection_buffer": selection_buffer,
+                "cost_model": asdict(cost_model),
+                "cost_semantics": {
+                    "fee_bps": "one-way fee on executed notional",
+                    "quoted_full_spread_bps": "full bid/ask spread",
+                    "one_way_half_spread_bps": "quoted full spread / 2; ADV tiers are fallback half-spreads",
+                    "impact_bps": "one-way impact excluding fees and spread",
+                },
+                "methodology": methodology,
+            }
+            _write_result(data_dir, target_name, detail.curve, detail.summary, metadata=metadata)
+            detail_dir = data_dir / "gold" / "backtests" / target_name
+            detail.selections.write_parquet(detail_dir / "selections.parquet", compression="zstd")
+            detail.contributions.write_parquet(detail_dir / "contributions.parquet", compression="zstd")
+            detail.rejected_orders.write_parquet(detail_dir / "rejected_orders.parquet", compression="zstd")
+            detail.costs.write_parquet(detail_dir / "costs.parquet", compression="zstd")
+            record_result(name, scenario, detail)
+
+        for name, weights in weighted_targets.items():
+            config = WeightedBacktestConfig(
+                initial_capital=INITIAL_CAPITAL,
+                execution_delay_bars=EXECUTION_DELAY_BARS,
+                cost_model=cost_model,
+            )
+            detail = run_monthly_weighted_backtest_detailed(
+                prices, weights, config=config, risk_free_returns=risk_free_returns
+            )
+            target = data_dir / "gold" / "backtests" / f"{prefix}_{name}{suffix}"
+            target.mkdir(parents=True, exist_ok=True)
+            detail.curve.write_parquet(target / "equity_curve.parquet", compression="zstd")
+            weights.write_parquet(target / "target_weights.parquet", compression="zstd")
+            diagnostics = weighted_metadata[name].get("solver_diagnostics")
+            if isinstance(diagnostics, pl.DataFrame):
+                diagnostics.filter(pl.col("trade_date").is_in(ordered_common_dates)).write_parquet(
+                    target / "solver_diagnostics.parquet", compression="zstd"
+                )
+            detail.rejected_orders.write_parquet(target / "rejected_orders.parquet", compression="zstd")
+            detail.costs.write_parquet(target / "costs.parquet", compression="zstd")
+            payload = asdict(detail.summary)
+            (target / "summary.json").write_text(
+                json.dumps(
+                    {
+                        **payload,
+                        "strategy": name,
+                        "cost_scenario": scenario,
+                        "cost_model": asdict(cost_model),
+                        "allocation": weighted_metadata[name]["allocation"],
+                        "methodology": methodology,
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            record_result(name, scenario, detail)
+
+    fairness = evaluate_benchmark_fairness(fairness_records)
+    if not fairness["passed"]:
+        raise DataQualityError(f"benchmark fairness failed: {fairness['failures']}")
+    comparison = pl.DataFrame(comparison_rows).sort("cost", "strategy")
+    comparison.write_parquet(
+        data_dir / "gold" / "backtests" / f"{prefix}_strategy_by_cost.parquet",
+        compression="zstd",
+    )
+    (data_dir / "gold" / "backtests" / f"{prefix}_strategy_by_cost.json").write_text(
+        json.dumps(
+            {"semantics": STRATEGY_COST_TABLE_SEMANTICS, "rows": comparison_rows},
+            indent=2,
+            ensure_ascii=False,
+            default=str,
+        ),
+        encoding="utf-8",
+    )
     results.update(
         _run_reference_benchmarks(
             data_dir=data_dir,
-            signals=signals,
+            signals=comparable_signals,
             prefix=prefix,
             risk_free_returns=risk_free_returns,
         )
     )
-    return results
-
-
-def _cost_sensitivity(
-    prices: pl.DataFrame,
-    signals: pl.DataFrame,
-    *,
-    risk_free_returns: pl.DataFrame | None,
-) -> list[dict[str, object]]:
-    if "target_end_date" not in signals.columns:
-        raise DataQualityError("cost sensitivity requires target_end_date to bound evaluation")
-    prices = prices.filter(pl.col("trade_date") <= pl.lit(signals["target_end_date"].max()))
-    output: list[dict[str, object]] = []
-    gross_curve, gross = run_monthly_topk_backtest(
-        prices,
-        signals,
-        score_column="signal_research_v2",
-        config=BacktestConfig(top_k=10, transaction_cost_bps=0.0, selection_buffer=5),
-        risk_free_returns=risk_free_returns,
-    )
-    del gross_curve
-    for bps in (5.0, 10.0, 25.0, 50.0, 100.0):
-        _, net = run_monthly_topk_backtest(
-            prices,
-            signals,
-            score_column="signal_research_v2",
-            config=BacktestConfig(top_k=10, transaction_cost_bps=bps, selection_buffer=5),
-            risk_free_returns=risk_free_returns,
-        )
-        output.append(
-            {
-                "transaction_cost_bps": bps,
-                "gross_cagr": gross.cagr,
-                "net_cagr": net.cagr,
-                "gross_sharpe": gross.sharpe,
-                "net_sharpe": net.sharpe,
-                "annualized_turnover": net.annualized_turnover,
-                "cost_model": "fixed_bps",
-            }
-        )
-    for capital in (100_000.0, 1_000_000.0, 10_000_000.0):
-        for cap in (0.01, 0.02, 0.05):
-            detail = run_monthly_topk_backtest_detailed(
-                prices,
-                signals,
-                score_column="signal_research_v2",
-                config=BacktestConfig(
-                    top_k=10,
-                    selection_buffer=5,
-                    initial_capital=capital,
-                    cost_model=ExecutionCostModel(
-                        mode="liquidity",
-                        fee_bps=3.0,
-                        participation_cap=cap,
-                        impact_coefficient_bps=10.0,
-                    ),
-                ),
-                risk_free_returns=risk_free_returns,
-            )
-            output.append(
-                {
-                    "cost_model": "liquidity",
-                    "initial_capital": capital,
-                    "participation_cap": cap,
-                    "net_cagr": detail.summary.cagr,
-                    "excess_cagr": detail.summary.excess_cagr,
-                    "excess_sharpe": detail.summary.sharpe,
-                    "fees_cost": detail.summary.fees_cost,
-                    "spread_cost": detail.summary.spread_cost,
-                    "impact_cost": detail.summary.impact_cost,
-                    "partial_fills": detail.rejected_orders.filter(
-                        pl.col("reason") == "participation_cap_partial_fill"
-                    ).height,
-                }
-            )
-    return output
+    return results, comparison_rows, fairness
 
 
 def main() -> None:
@@ -507,7 +561,6 @@ def main() -> None:
         "target_cross_sectional_rank",
         "execution_lag_bars",
         "target_horizon_bars",
-        "universe_eligible",
     }
     if missing := required - set(features.columns):
         raise SystemExit(f"Feature panel predates leakage-safe protocol. Rebuild it; missing {sorted(missing)}")
@@ -583,7 +636,7 @@ def main() -> None:
         diagnostic_signals_path = data_dir / "gold" / "backtests" / f"diagnostic_{protocol.diagnostic_year}_signals.parquet"
         diagnostic_signals_path.parent.mkdir(parents=True, exist_ok=True)
         signals.write_parquet(diagnostic_signals_path, compression="zstd")
-        results = _run_strategies(
+        results, strategy_by_cost, benchmark_fairness = _run_strategies(
             prices=prices,
             signals=signals,
             data_dir=data_dir,
@@ -601,6 +654,9 @@ def main() -> None:
             "accepted": None,
             "reason": "Diagnostic-year performance is prohibited from changing acceptance or model selection.",
             "strategies": results,
+            "strategy_by_cost": strategy_by_cost,
+            "strategy_by_cost_semantics": STRATEGY_COST_TABLE_SEMANTICS,
+            "benchmark_fairness": benchmark_fairness,
         }
         out = data_dir / "gold" / "backtests" / f"comparison_diagnostic_{protocol.diagnostic_year}.json"
         out.write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
@@ -648,7 +704,7 @@ def main() -> None:
     signals_path = data_dir / "gold" / "backtests" / "development_signals.parquet"
     signals_path.parent.mkdir(parents=True, exist_ok=True)
     signals.write_parquet(signals_path, compression="zstd")
-    results = _run_strategies(
+    results, strategy_by_cost, benchmark_fairness = _run_strategies(
         prices=prices,
         signals=signals,
         data_dir=data_dir,
@@ -737,8 +793,8 @@ def main() -> None:
         excess_sharpe=float(research["sharpe"]) if risk_free_returns is not None else float("nan"),
         max_drawdown=float(research["max_drawdown"]),
         annualized_turnover=float(research["annualized_turnover"]),
-        excess_cagr_ci_low_vs_cdi=cdi_excess_ci[1],
-        excess_cagr_ci_low_vs_ibov=ibov_excess_ci[1],
+        relative_cagr_ci_low_vs_cdi=cdi_excess_ci[1],
+        relative_cagr_ci_low_vs_ibov=ibov_excess_ci[1],
         deflated_sharpe_probability=dsr_probability,
         number_of_trials=number_of_trials,
         leakage_tests_passed=leakage_tests_passed,
@@ -746,9 +802,7 @@ def main() -> None:
             protocol.diagnostic_year > protocol.development_end_year
             and protocol.diagnostic_start > protocol.development_knowledge_cutoff
         ),
-    )
-    cost_sensitivity = _cost_sensitivity(
-        prices, signals, risk_free_returns=risk_free_returns
+        benchmark_fairness_passed=bool(benchmark_fairness["passed"]),
     )
     report = {
         "protocol": {
@@ -761,14 +815,16 @@ def main() -> None:
         "feature_panel": str(feature_path),
         "fold_metrics": fold_metrics,
         "strategies": results,
-        "cost_sensitivity": cost_sensitivity,
+        "strategy_by_cost": strategy_by_cost,
+        "strategy_by_cost_semantics": STRATEGY_COST_TABLE_SEMANTICS,
+        "benchmark_fairness": benchmark_fairness,
         "inference": {
             "block_length_months": 3,
             "block_length_rationale": "Conservative dependence allowance exceeding the 21-bar target/holding overlap.",
             "rank_ic": {"estimate": rank_ic_ci[0], "ci_low": rank_ic_ci[1], "ci_high": rank_ic_ci[2]},
             "top10_spread": {"estimate": spread_ci[0], "ci_low": spread_ci[1], "ci_high": spread_ci[2]},
-            "excess_cagr_vs_cdi": {"estimate": cdi_excess_ci[0], "ci_low": cdi_excess_ci[1], "ci_high": cdi_excess_ci[2]},
-            "excess_cagr_vs_ibov": {"estimate": ibov_excess_ci[0], "ci_low": ibov_excess_ci[1], "ci_high": ibov_excess_ci[2]},
+            "relative_cagr_vs_cdi": {"estimate": cdi_excess_ci[0], "ci_low": cdi_excess_ci[1], "ci_high": cdi_excess_ci[2]},
+            "relative_cagr_vs_ibov": {"estimate": ibov_excess_ci[0], "ci_low": ibov_excess_ci[1], "ci_high": ibov_excess_ci[2]},
             "deflated_sharpe_probability": dsr_probability,
             "deflated_sharpe_hurdle": dsr_hurdle,
             "number_of_trials": number_of_trials,
@@ -786,14 +842,8 @@ def main() -> None:
         parameters={
             "outer_fold_configs": outer_fold_configs,
             "final_artifact_model_config_not_used_for_outer_scoring": model_config,
-            "registered_cost_model": asdict(
-                ExecutionCostModel(
-                    mode="liquidity",
-                    fee_bps=3.0,
-                    participation_cap=0.02,
-                    impact_coefficient_bps=10.0,
-                )
-            ),
+            "registered_cost_model": asdict(REGISTERED_COST_MODEL),
+            "pre_registered_impact_stress": asdict(VOLATILITY_SCALED_IMPACT_STRESS),
         },
         training_window={
             "selected_name": selected_policy["selected_name"],

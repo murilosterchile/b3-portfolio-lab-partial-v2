@@ -182,7 +182,10 @@ def _coverage_by_year(train: pl.DataFrame, features: list[str]) -> dict[int, dic
         output[int(year)] = {
             name: float(
                 subset.select(
-                    (pl.col(name).is_not_null() & pl.col(name).is_finite()).mean()
+                    (
+                        pl.col(name).is_not_null()
+                        & pl.col(name).cast(pl.Float64, strict=False).is_finite()
+                    ).mean()
                 ).item()
             )
             for name in features
@@ -205,7 +208,12 @@ def select_available_features(
         raise DataQualityError("cannot select features from an empty training frame")
     coverage = {
         name: float(
-            train.select((pl.col(name).is_not_null() & pl.col(name).is_finite()).mean()).item()
+            train.select(
+                (
+                    pl.col(name).is_not_null()
+                    & pl.col(name).cast(pl.Float64, strict=False).is_finite()
+                ).mean()
+            ).item()
         )
         for name in requested_features
     }
@@ -216,7 +224,10 @@ def select_available_features(
             robust_date_fraction[name] = 1.0
         else:
             per_date = train.group_by("trade_date").agg(
-                (pl.col(name).is_not_null() & pl.col(name).is_finite()).mean().alias("coverage")
+                (
+                    pl.col(name).is_not_null()
+                    & pl.col(name).cast(pl.Float64, strict=False).is_finite()
+                ).mean().alias("coverage")
             )
             robust_date_fraction[name] = float(
                 per_date.select((pl.col("coverage") >= required).mean()).item()

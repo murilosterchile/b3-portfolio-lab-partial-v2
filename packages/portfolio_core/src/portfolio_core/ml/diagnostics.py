@@ -92,9 +92,9 @@ def monthly_feature_ic(
     rows: list[dict[str, object]] = []
     for group in frame.partition_by("trade_date", maintain_order=True):
         trade_date = group["trade_date"].item(0)
-        target = group[target_column].to_numpy()
+        target = group[target_column].cast(pl.Float64, strict=False).to_numpy()
         for feature in features:
-            values = group[feature].to_numpy()
+            values = group[feature].cast(pl.Float64, strict=False).to_numpy()
             mask = np.isfinite(values) & np.isfinite(target)
             if mask.sum() < 10:
                 continue

@@ -86,6 +86,7 @@ def composite_quant_score(
         (weights["quality"] * pl.col("quality_score")).alias(
             "quant_contribution_quality"
         ),
+    ).with_columns(
         (
             pl.col("quant_contribution_momentum")
             + pl.col("quant_contribution_low_volatility")

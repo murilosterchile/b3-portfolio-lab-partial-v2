@@ -7,9 +7,15 @@ import polars as pl
 
 from portfolio_core.data_quality import DataQualityError, validate_prices
 from portfolio_core.quant import hierarchical_risk_parity, inverse_volatility, minimum_variance
-from portfolio_core.quant.risk import ledoit_wolf_covariance
 
-from .engine import BacktestSummary, _metrics, _one_way_turnover
+from .engine import (
+    BacktestSummary,
+    ExecutionCostModel,
+    _aligned_daily_returns,
+    _liquidity_cost,
+    _metrics,
+    _one_way_turnover,
+)
 
 
 @dataclass(frozen=True)
@@ -17,6 +23,16 @@ class WeightedBacktestConfig:
     transaction_cost_bps: float = 15.0
     initial_capital: float = 100_000.0
     execution_delay_bars: int = 1
+    max_stale_valuation_sessions: int = 20
+    cost_model: ExecutionCostModel = ExecutionCostModel()
+
+
+@dataclass(frozen=True)
+class DetailedWeightedBacktest:
+    curve: pl.DataFrame
+    summary: BacktestSummary
+    rejected_orders: pl.DataFrame
+    costs: pl.DataFrame
 
 
 _DEFAULT_WEIGHTED_CONFIG = WeightedBacktestConfig()
@@ -42,30 +58,46 @@ def build_monthly_risk_benchmark_weights(
     for signal_date in sorted(set(features["trade_date"].to_list())):
         cross = features.filter(pl.col("trade_date") == signal_date).sort(
             "rank_log_volume_21d", descending=True
-        ).head(candidate_count)
+        )
+        if "CD_CVM" in cross.columns:
+            cross = cross.with_columns(pl.col("CD_CVM").cast(pl.Utf8).alias("__issuer"))
+        elif "issuer_identifier" in cross.columns:
+            cross = cross.with_columns(pl.col("issuer_identifier").cast(pl.Utf8).alias("__issuer"))
+        else:
+            cross = cross.with_columns(pl.col("ticker").str.slice(0, 4).alias("__issuer"))
+        cross = cross.unique(subset="__issuer", keep="first", maintain_order=True).head(
+            candidate_count
+        )
         tickers = cross["ticker"].to_list()
         if len(tickers) < 2:
             continue
-        history = prices.filter(
-            (pl.col("trade_date") <= pl.lit(signal_date)) & pl.col("ticker").is_in(tickers)
-        ).select("trade_date", "ticker", "adjusted_close")
-        wide = history.pivot(index="trade_date", on="ticker", values="adjusted_close").sort("trade_date")
-        available = [ticker for ticker in tickers if ticker in wide.columns]
-        if len(available) < 2:
-            continue
-        values = wide.select(available).fill_null(strategy="forward").tail(lookback_observations + 1).to_numpy()
-        if values.shape[0] < 80:
-            continue
-        with np.errstate(divide="ignore", invalid="ignore"):
-            returns = values[1:] / values[:-1] - 1.0
-        returns = returns[np.all(np.isfinite(returns), axis=1)]
-        if returns.shape[0] < 60:
-            continue
-        covariance = (
-            ledoit_wolf_covariance(returns)
-            if estimator == "ledoit_wolf"
-            else np.cov(returns, rowvar=False, ddof=1)
-        )
+        if estimator == "ledoit_wolf":
+            from .strategies import point_in_time_covariance
+
+            covariance_result = point_in_time_covariance(
+                prices,
+                tickers,
+                signal_date,
+                lookback_observations=lookback_observations,
+            )
+            if covariance_result is None:
+                continue
+            available, covariance = covariance_result
+        else:
+            history = prices.filter(
+                (pl.col("trade_date") <= pl.lit(signal_date)) & pl.col("ticker").is_in(tickers)
+            ).select("trade_date", "ticker", "adjusted_close")
+            wide = history.pivot(index="trade_date", on="ticker", values="adjusted_close").sort("trade_date")
+            available = [ticker for ticker in tickers if ticker in wide.columns]
+            if len(available) < 2:
+                continue
+            values = wide.select(available).tail(lookback_observations + 1).to_numpy()
+            with np.errstate(divide="ignore", invalid="ignore"):
+                returns = values[1:] / values[:-1] - 1.0
+            returns = returns[np.all(np.isfinite(returns), axis=1)]
+            if returns.shape[0] < 60:
+                continue
+            covariance = np.cov(returns, rowvar=False, ddof=1) * 252.0
         if allocation == "minvar":
             weights = minimum_variance(covariance, max_weight=min(0.20, 1.0))
         elif allocation == "inverse_vol":
@@ -88,10 +120,33 @@ def run_monthly_weighted_backtest(
     target_weights: pl.DataFrame,
     *,
     config: WeightedBacktestConfig = _DEFAULT_WEIGHTED_CONFIG,
+    risk_free_returns: pl.DataFrame | None = None,
 ) -> tuple[pl.DataFrame, BacktestSummary]:
-    """Execute precomputed weights at the next close with half-L1 trading costs."""
+    """Compatibility wrapper for the detailed weighted execution engine."""
+    result = run_monthly_weighted_backtest_detailed(
+        prices, target_weights, config=config, risk_free_returns=risk_free_returns
+    )
+    return result.curve, result.summary
+
+
+def run_monthly_weighted_backtest_detailed(
+    prices: pl.DataFrame,
+    target_weights: pl.DataFrame,
+    *,
+    config: WeightedBacktestConfig = _DEFAULT_WEIGHTED_CONFIG,
+    risk_free_returns: pl.DataFrame | None = None,
+) -> DetailedWeightedBacktest:
+    """Execute weights only where the execution close is genuinely observed."""
     if config.execution_delay_bars < 1:
         raise ValueError("execution_delay_bars must be >= 1")
+    if config.max_stale_valuation_sessions < 1:
+        raise ValueError("max_stale_valuation_sessions must be positive")
+    if config.transaction_cost_bps < 0:
+        raise ValueError("transaction_cost_bps must be non-negative")
+    if config.cost_model.mode not in {"fixed_bps", "liquidity"}:
+        raise ValueError("unsupported cost model")
+    if not 0 < config.cost_model.participation_cap <= 1:
+        raise ValueError("participation_cap must be in (0, 1]")
     required = {"trade_date", "ticker", "target_weight"}
     if missing := required - set(target_weights.columns):
         raise DataQualityError(f"target weights missing columns: {sorted(missing)}")
@@ -110,17 +165,52 @@ def run_monthly_weighted_backtest(
 
     tickers = target_weights["ticker"].unique().to_list()
     used = prices.filter(pl.col("ticker").is_in(tickers))
+    if used.is_empty():
+        raise DataQualityError("target weights have no matching price history")
     validate_prices(used, context="weighted backtest prices")
     wide = used.select("trade_date", "ticker", "adjusted_close").pivot(
         index="trade_date", on="ticker", values="adjusted_close"
+    )
+    wide = prices.select("trade_date").unique().join(
+        wide, on="trade_date", how="left", validate="1:1"
     ).sort("trade_date")
     dates = wide["trade_date"].to_list()
     asset_names = [name for name in wide.columns if name != "trade_date"]
+    observed = wide.select(pl.col(asset_names).is_not_null()).to_numpy()
     values = wide.select(asset_names).fill_null(strategy="forward").to_numpy()
+    adv = np.full_like(values, np.nan)
+    quoted_spread_bps = np.full_like(values, np.nan)
+    if config.cost_model.mode == "liquidity":
+        if "volume" not in used.columns:
+            raise DataQualityError("liquidity cost model requires B3 financial volume")
+        liquidity = used.sort(["ticker", "trade_date"]).with_columns(
+            pl.col("volume").rolling_mean(21, min_samples=5).shift(1).over("ticker").alias("__adv")
+        )
+        if {"best_bid", "best_ask"} <= set(used.columns):
+            liquidity = liquidity.with_columns(
+                pl.when((pl.col("best_bid") > 0) & (pl.col("best_ask") >= pl.col("best_bid")))
+                .then((pl.col("best_ask") - pl.col("best_bid")) / ((pl.col("best_ask") + pl.col("best_bid")) / 2.0) * 10_000.0)
+                .otherwise(None)
+                .alias("__spread_bps")
+            )
+        else:
+            liquidity = liquidity.with_columns(
+                pl.lit(None, dtype=pl.Float64).alias("__spread_bps")
+            )
+        adv_wide = liquidity.select("trade_date", "ticker", "__adv").pivot(
+            index="trade_date", on="ticker", values="__adv"
+        )
+        spread_wide = liquidity.select("trade_date", "ticker", "__spread_bps").pivot(
+            index="trade_date", on="ticker", values="__spread_bps"
+        )
+        adv = wide.select("trade_date").join(adv_wide, on="trade_date", how="left").select(asset_names).to_numpy()
+        quoted_spread_bps = wide.select("trade_date").join(spread_wide, on="trade_date", how="left").select(asset_names).to_numpy()
     date_to_index = {value: i for i, value in enumerate(dates)}
     ticker_to_index = {ticker: i for i, ticker in enumerate(asset_names)}
     schedule: dict[object, np.ndarray] = {}
+    schedule_signal_dates: dict[object, object] = {}
     positions: list[int] = []
+    rejected_rows: list[dict[str, object]] = []
     for signal_date in sorted(set(target_weights["trade_date"].to_list())):
         idx = date_to_index.get(signal_date)
         if idx is None or idx + config.execution_delay_bars >= len(dates):
@@ -130,8 +220,31 @@ def run_monthly_weighted_backtest(
         target = np.zeros(len(asset_names))
         for row in cross.iter_rows(named=True):
             if row["ticker"] in ticker_to_index:
-                target[ticker_to_index[row["ticker"]]] = float(row["target_weight"])
+                column = ticker_to_index[row["ticker"]]
+                if observed[idx + config.execution_delay_bars, column]:
+                    target[column] = float(row["target_weight"])
+                else:
+                    rejected_rows.append(
+                        {
+                            "signal_date": signal_date,
+                            "execution_date": execution_date,
+                            "ticker": row["ticker"],
+                            "target_weight": float(row["target_weight"]),
+                            "reason": "no_observed_execution_quote",
+                        }
+                    )
+            else:
+                rejected_rows.append(
+                    {
+                        "signal_date": signal_date,
+                        "execution_date": execution_date,
+                        "ticker": row["ticker"],
+                        "target_weight": float(row["target_weight"]),
+                        "reason": "missing_price_history",
+                    }
+                )
         schedule[execution_date] = target
+        schedule_signal_dates[execution_date] = signal_date
         positions.append(int(np.sum(target > 0)))
     if not schedule:
         raise DataQualityError("no executable weighted rebalance dates")
@@ -144,43 +257,130 @@ def run_monthly_weighted_backtest(
     equity = [capital]
     periodic: list[float] = []
     turnover_total = 0.0
+    stale_age = np.zeros(len(asset_names), dtype=int)
+    risk_free_daily = _aligned_daily_returns(dates[start:], risk_free_returns)
+    realized_risk_free: list[float] = []
+    cost_rows: list[dict[str, object]] = []
+    cost_totals = {"fees": 0.0, "spread": 0.0, "impact": 0.0}
     with np.errstate(divide="ignore", invalid="ignore"):
         returns = values[1:] / values[:-1] - 1.0
     for i in range(start + 1, len(dates)):
         current_date = dates[i]
         before = capital
         active = weights > 0
-        asset_return = returns[i - 1]
+        stale_age = np.where(observed[i], 0, stale_age + 1)
+        asset_return = returns[i - 1].copy()
+        asset_return[active & (stale_age == config.max_stale_valuation_sessions + 1)] = -0.999
         if np.any(active & ~np.isfinite(asset_return)):
             raise DataQualityError("held asset has non-finite adjusted return")
-        day_return = float(weights[active] @ asset_return[active]) if np.any(active) else 0.0
+        rf_return = float(risk_free_daily[i - start - 1])
+        day_return = (
+            float(weights[active] @ asset_return[active]) if np.any(active) else 0.0
+        ) + cash * rf_return
         capital *= 1.0 + day_return
         growth = 1.0 + day_return
         drift = np.zeros_like(weights)
         drift[active] = weights[active] * (1.0 + asset_return[active]) / growth
         weights = drift
-        cash /= growth
+        cash = cash * (1.0 + rf_return) / growth
         if current_date in schedule:
-            target = schedule[current_date]
+            target = schedule[current_date].copy()
+            blocked = active & ~observed[i]
+            if np.any(blocked):
+                target[blocked] = weights[blocked]
+                residual = max(0.0, 1.0 - float(target[blocked].sum()))
+                tradable_target = ~blocked
+                requested = float(target[tradable_target].sum())
+                if requested > residual and requested > 0:
+                    target[tradable_target] *= residual / requested
+                for column in np.flatnonzero(blocked):
+                    rejected_rows.append(
+                        {
+                            "signal_date": schedule_signal_dates[current_date],
+                            "execution_date": current_date,
+                            "ticker": asset_names[column],
+                            "target_weight": float(schedule[current_date][column]),
+                            "reason": "no_observed_quote_for_exit",
+                        }
+                    )
+            requested_target = target.copy()
+            component_costs = {"fees": 0.0, "spread": 0.0, "impact": 0.0}
+            participation = np.full(len(asset_names), np.nan)
+            if config.cost_model.mode == "liquidity":
+                target, component_costs, participation = _liquidity_cost(
+                    weights,
+                    requested_target,
+                    capital=capital,
+                    adv=adv[i],
+                    quoted_spread_bps=quoted_spread_bps[i],
+                    model=config.cost_model,
+                )
+                for column in np.flatnonzero(np.abs(target - requested_target) > 1e-12):
+                    rejected_rows.append(
+                        {
+                            "signal_date": schedule_signal_dates[current_date],
+                            "execution_date": current_date,
+                            "ticker": asset_names[column],
+                            "target_weight": float(requested_target[column]),
+                            "reason": "participation_cap_partial_fill",
+                        }
+                    )
             target_cash = max(0.0, 1.0 - float(target.sum()))
             turnover = _one_way_turnover(weights, target, current_cash=cash, target_cash=target_cash)
             turnover_total += turnover
-            capital *= 1.0 - turnover * config.transaction_cost_bps / 10_000.0
+            if config.cost_model.mode == "fixed_bps":
+                component_costs["fees"] = turnover * config.transaction_cost_bps / 10_000.0
+            cost_fraction = float(sum(component_costs.values()))
+            if cost_fraction >= 1.0:
+                raise DataQualityError(f"transaction costs consume all capital on {current_date}")
+            for component, fraction in component_costs.items():
+                amount = capital * fraction
+                cost_totals[component] += amount
+                if amount > 0:
+                    cost_rows.append(
+                        {
+                            "trade_date": current_date,
+                            "component": component,
+                            "cost_amount": amount,
+                            "cost_fraction": fraction,
+                            "capital": capital,
+                            "max_participation": float(np.nanmax(participation))
+                            if np.any(np.isfinite(participation))
+                            else None,
+                        }
+                    )
+            capital *= 1.0 - cost_fraction
             weights = target
             cash = target_cash
         periodic.append(capital / before - 1.0)
+        realized_risk_free.append(rf_return)
         equity.append(capital)
     equity_array = np.asarray(equity)
-    return (
-        pl.DataFrame({"trade_date": dates[start:], "portfolio_value": equity_array}).with_columns(
-            pl.lit("adjusted_close").alias("price_basis")
-        ),
-        _metrics(
+    curve = pl.DataFrame(
+        {
+            "trade_date": dates[start:],
+            "portfolio_value": equity_array,
+            "net_return": [None, *periodic],
+            "risk_free_return": [None, *realized_risk_free],
+        }
+    ).with_columns(
+        pl.lit("adjusted_close").alias("price_basis"),
+        (pl.col("net_return") - pl.col("risk_free_return")).alias("excess_return"),
+    )
+    summary = _metrics(
             equity_array,
             np.asarray(periodic),
             turnover_total,
             rebalance_periods=len(schedule),
             average_positions=float(np.mean(positions)) if positions else 0.0,
             execution_delay_bars=config.execution_delay_bars,
-        ),
+            risk_free_returns=np.asarray(realized_risk_free),
+            cost_totals=cost_totals,
     )
+    rejected = pl.DataFrame(rejected_rows) if rejected_rows else pl.DataFrame(
+        schema={"signal_date": pl.Date, "execution_date": pl.Date, "ticker": pl.Utf8, "target_weight": pl.Float64, "reason": pl.Utf8}
+    )
+    costs = pl.DataFrame(cost_rows) if cost_rows else pl.DataFrame(
+        schema={"trade_date": pl.Date, "component": pl.Utf8, "cost_amount": pl.Float64, "cost_fraction": pl.Float64, "capital": pl.Float64, "max_participation": pl.Float64}
+    )
+    return DetailedWeightedBacktest(curve, summary, rejected, costs)

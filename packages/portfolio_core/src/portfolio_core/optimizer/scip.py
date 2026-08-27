@@ -33,6 +33,11 @@ def solve_exact_scip(instance: QKPInstance, *, time_limit_seconds: float | None 
             indices = [i for i, value in enumerate(instance.sectors) if value == sector]
             if indices:
                 model.addCons(quicksum(x[i] for i in indices) <= limit)
+    if instance.issuer_ids is not None:
+        for issuer in sorted(set(instance.issuer_ids)):
+            indices = [i for i, value in enumerate(instance.issuer_ids) if value == issuer]
+            if len(indices) > 1:
+                model.addCons(quicksum(x[i] for i in indices) <= 1)
 
     objective = quicksum(float(instance.linear_values[i]) * x[i] for i in range(n))
     objective += quicksum(

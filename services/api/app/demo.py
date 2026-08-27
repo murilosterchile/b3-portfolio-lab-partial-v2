@@ -38,7 +38,7 @@ def seed_demo(db: Session) -> int:
         db.add(
             AssetSnapshot(
                 as_of=as_of,
-                ticker=row[0], company=row[1], sector=row[2], price=row[3],
+                ticker=row[0], issuer_id=row[0][:4], company=row[1], sector=row[2], price=row[3],
                 predicted_excess_return=row[4], prediction_uncertainty=row[5],
                 volatility_annual=row[6], ml_score=row[7], quant_score=row[8],
                 liquidity_score=row[9], explanation=row[10],

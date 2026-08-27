@@ -7,6 +7,7 @@ from pathlib import Path
 
 import polars as pl
 
+from portfolio_core.data_quality import filter_labels_known_by
 from portfolio_core.features.fundamental import FUNDAMENTAL_FEATURES
 from portfolio_core.ml.protocol import ResearchProtocol
 from portfolio_core.ml.walk_forward import (
@@ -14,9 +15,8 @@ from portfolio_core.ml.walk_forward import (
     TrainingPolicy,
     fit_final_model,
     save_signal_model,
-    walk_forward_evaluate,
 )
-from portfolio_core.quant.factors import composite_quant_score
+from portfolio_core.quant.factors import composite_quant_score, learn_factor_sleeve_weights
 
 
 def main() -> None:
@@ -32,11 +32,12 @@ def main() -> None:
     if "target_end_date" not in frame.columns:
         raise SystemExit("Feature panel predates target_end_date. Rebuild features before training.")
     feature_names = DEFAULT_FEATURES + [name for name in FUNDAMENTAL_FEATURES if name in frame.columns]
-    development = frame.filter(pl.col("trade_date").dt.year() <= protocol.development_end_year)
+    development = filter_labels_known_by(
+        frame, knowledge_cutoff=protocol.development_knowledge_cutoff
+    )
     print(f"feature_panel={feature_path} features={len(feature_names)}")
     print(f"development_end_year={protocol.development_end_year}")
     print(protocol.warning)
-
     tuned_path = model_dir / "tuned_hyperparameters.json"
     model_config = None
     tuning_metadata = None
@@ -45,24 +46,51 @@ def main() -> None:
         if (
             int(tuning_metadata.get("development_end_year", -1)) == protocol.development_end_year
             and int(tuning_metadata.get("diagnostic_year", -1)) == protocol.diagnostic_year
+            and int(tuning_metadata.get("target_horizon_bars", -1)) == protocol.label_horizon_bars
         ):
             model_config = tuning_metadata.get("config")
+            if not tuning_metadata.get("outer_fold_scores"):
+                raise SystemExit("Tuning artifact lacks untouched outer folds; run make tune again")
             print(f"using_tuned_config={tuned_path}")
         else:
             print("tuned_config_ignored=research_protocol_mismatch")
 
-    policy = TrainingPolicy()
-    evaluation = walk_forward_evaluate(
-        development,
-        first_validation_year=2019,
-        last_validation_year=protocol.development_end_year,
-        feature_names=feature_names,
-        model_config=model_config,
-        training_policy=policy,
+    selected_policy_path = model_dir / "selected_training_policy.json"
+    if not selected_policy_path.exists():
+        raise SystemExit(
+            "Missing development-only policy selection. Run make diagnose-model-degradation first."
+        )
+    selected_policy = json.loads(selected_policy_path.read_text(encoding="utf-8"))
+    if (
+        int(selected_policy.get("development_end_year", -1)) != protocol.development_end_year
+        or int(selected_policy.get("diagnostic_year", -1)) != protocol.diagnostic_year
+    ):
+        raise SystemExit("Selected training policy does not match the registered research protocol")
+    policy = TrainingPolicy(**selected_policy["training_policy"])
+    factor_development = development
+    if policy.window_years is not None:
+        factor_development = factor_development.filter(
+            pl.col("trade_date").dt.year()
+            >= protocol.development_end_year - policy.window_years + 1
+        )
+    factor_sleeve_weights = learn_factor_sleeve_weights(factor_development)
+    model_dir.mkdir(parents=True, exist_ok=True)
+    (model_dir / "factor_sleeve_challenger.json").write_text(
+        json.dumps(
+            {
+                "weights": factor_sleeve_weights,
+                "shrinkage_to_equal": 0.80,
+                "turnover_penalty": 0.10,
+                "knowledge_cutoff": str(protocol.development_knowledge_cutoff),
+                "diagnostic_year_excluded": protocol.diagnostic_year,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
     )
-    print("development_walk_forward:")
-    for year, metrics in evaluation:
-        print(year, metrics)
+    print("nested_outer_evaluation:")
+    for year, score in sorted((tuning_metadata or {}).get("outer_fold_scores", {}).items()):
+        print(year, {"rank_ic": score, "selection": "inner_folds_only"})
 
     model = fit_final_model(
         development,
@@ -93,6 +121,15 @@ def main() -> None:
             "pre_validation_embargo_days": policy.pre_validation_embargo_days,
         },
         "tuned_config_used": model_config is not None,
+        "selected_policy_metadata": selected_policy,
+        "effective_model_config": model.model.effective_config(),
+        "feature_coverage_by_year": model.feature_coverage_by_year,
+        "disagreement_calibration": {
+            "enabled": model.disagreement_calibration.enabled,
+            "reason": model.disagreement_calibration.reason,
+            "rank_correlation": model.disagreement_calibration.rank_correlation,
+            "bins": list(model.disagreement_calibration.bins),
+        },
         "tuning": tuning_metadata if model_config is not None else None,
         "warning": protocol.warning,
         "research_warning": "Promotion requires development-fold evidence and cannot use diagnostic-year results.",
@@ -132,6 +169,11 @@ def main() -> None:
                     AssetSnapshot(
                         as_of=as_of,
                         ticker=str(row["ticker"]),
+                        issuer_id=str(
+                            row.get("CD_CVM")
+                            or row.get("issuer_identifier")
+                            or str(row["ticker"])[:4]
+                        ),
                         company=str(row["ticker"]),
                         sector=str(row.get("sector") or "Unknown"),
                         price=float(row["close"]),

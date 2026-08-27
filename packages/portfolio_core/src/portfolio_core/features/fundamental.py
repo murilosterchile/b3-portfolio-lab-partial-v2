@@ -15,13 +15,124 @@ FUNDAMENTAL_LEVEL_FEATURES = [
     "asset_turnover",
     "gross_margin",
     "gross_profitability",
+    "operating_cash_flow_to_assets",
     "equity_to_assets",
+    "leverage_to_assets",
+    "asset_growth",
     "log_revenue",
     "log_assets",
     "log_equity",
+    "fundamental_age_days",
+    "negative_equity",
+    "stale_fundamental",
 ]
-FUNDAMENTAL_RANK_FEATURES = [f"rank_{name}" for name in FUNDAMENTAL_LEVEL_FEATURES]
-FUNDAMENTAL_FEATURES = FUNDAMENTAL_LEVEL_FEATURES + FUNDAMENTAL_RANK_FEATURES
+FUNDAMENTAL_RANK_FEATURES = [
+    f"rank_{name}"
+    for name in FUNDAMENTAL_LEVEL_FEATURES
+    if name not in {"fundamental_age_days", "negative_equity", "stale_fundamental"}
+]
+FUNDAMENTAL_SECTOR_RANK_FEATURES = [
+    name.replace("rank_", "sector_rank_", 1) for name in FUNDAMENTAL_RANK_FEATURES
+]
+FUNDAMENTAL_MISSINGNESS_FEATURES = [
+    "fundamental_available_count",
+    "fundamental_missing_fraction",
+]
+SECTOR_NEUTRAL_TECHNICAL_FEATURES = [
+    f"sector_rank_{name}"
+    for name in (
+        "momentum_12_1",
+        "medium_term_momentum",
+        "short_term_reversal_5d",
+        "volatility_63d",
+        "residual_volatility_63d",
+        "log_traded_value_21d",
+        "amihud_illiquidity_21d",
+    )
+]
+FUNDAMENTAL_FEATURES = (
+    FUNDAMENTAL_LEVEL_FEATURES
+    + FUNDAMENTAL_RANK_FEATURES
+    + FUNDAMENTAL_SECTOR_RANK_FEATURES
+    + FUNDAMENTAL_MISSINGNESS_FEATURES
+    + SECTOR_NEUTRAL_TECHNICAL_FEATURES
+)
+
+
+_FLOW_ACCOUNTS = {
+    "3.01": "revenue",
+    "3.03": "gross_profit",
+    "3.11": "net_income",
+    "6.01": "operating_cash_flow",
+}
+
+
+def _point_in_time_flows(frame: pl.DataFrame) -> pl.DataFrame:
+    """Build comparable TTM flows, falling back to the latest known fiscal year."""
+    if not {"DT_INI_EXERC", "DT_FIM_EXERC"}.issubset(frame.columns):
+        return pl.DataFrame()
+    source = frame.filter(pl.col("CD_CONTA").is_in(list(_FLOW_ACCOUNTS))).select(
+        "CD_CVM", "DT_RECEB", "DT_INI_EXERC", "DT_FIM_EXERC", "CD_CONTA", "VL_CONTA"
+    ).drop_nulls(["DT_RECEB", "CD_CONTA", "VL_CONTA"])
+    if source.is_empty():
+        return pl.DataFrame()
+
+    output: list[dict[str, object]] = []
+    for company in source.partition_by("CD_CVM", maintain_order=True):
+        issuer = str(company.get_column("CD_CVM").item(0))
+        known: dict[tuple[str, object, object], float] = {}
+        for receipt_frame in company.sort(["DT_RECEB", "DT_FIM_EXERC"]).partition_by(
+            "DT_RECEB", maintain_order=True
+        ):
+            receipt = receipt_frame.get_column("DT_RECEB").item(0)
+            for row in receipt_frame.iter_rows(named=True):
+                known[(str(row["CD_CONTA"]), row["DT_INI_EXERC"], row["DT_FIM_EXERC"])] = float(
+                    row["VL_CONTA"]
+                )
+            result: dict[str, object] = {"CD_CVM": issuer, "DT_RECEB": receipt}
+            for account, name in _FLOW_ACCOUNTS.items():
+                periods = [
+                    (start, end, value)
+                    for (code, start, end), value in known.items()
+                    if code == account and start is not None and end is not None
+                ]
+                quarters: dict[object, float] = {}
+                fiscal_years: list[tuple[object, float]] = []
+                by_start: dict[object, list[tuple[object, float]]] = {}
+                for start, end, value in periods:
+                    by_start.setdefault(start, []).append((end, value))
+                for start, cumulative in by_start.items():
+                    ordered = sorted(cumulative, key=lambda item: item[0])
+                    previous_value = 0.0
+                    previous_end = None
+                    for end, value in ordered:
+                        duration = (end - start).days + 1
+                        if previous_end is None or (end - previous_end).days > 120:
+                            discrete = value if duration <= 120 else None
+                        else:
+                            discrete = value - previous_value
+                        if discrete is not None:
+                            quarters[end] = discrete
+                        if duration >= 330:
+                            fiscal_years.append((end, value))
+                        previous_value = value
+                        previous_end = end
+                recent_quarters = sorted(quarters.items(), key=lambda item: item[0])[-4:]
+                consecutive_ttm = len(recent_quarters) == 4 and all(
+                    60 <= (recent_quarters[index][0] - recent_quarters[index - 1][0]).days <= 120
+                    for index in range(1, 4)
+                )
+                if consecutive_ttm:
+                    result[name] = float(sum(value for _, value in recent_quarters))
+                    result[f"{name}_basis"] = "TTM"
+                elif fiscal_years:
+                    result[name] = float(max(fiscal_years, key=lambda item: item[0])[1])
+                    result[f"{name}_basis"] = "FY"
+                else:
+                    result[name] = None
+                    result[f"{name}_basis"] = None
+            output.append(result)
+    return pl.DataFrame(output) if output else pl.DataFrame()
 
 
 def build_company_fundamental_snapshots(statements: pl.DataFrame) -> pl.DataFrame:
@@ -46,21 +157,57 @@ def build_company_fundamental_snapshots(statements: pl.DataFrame) -> pl.DataFram
             pl.col("VERSAO").cast(pl.Int64, strict=False).fill_null(-1).alias("_version_order")
         ).filter(pl.col("_version_order") == pl.col("_version_order").max().over(version_keys))
 
+    frame = frame.with_columns(pl.col("CD_CVM").cast(pl.Utf8))
     snapshots = frame.group_by(["CD_CVM", "DT_REFER", "DT_RECEB"]).agg(
-        pl.when(pl.col("CD_CONTA") == "3.01").then(pl.col("VL_CONTA")).max().alias("revenue"),
-        pl.when(pl.col("CD_CONTA") == "3.03").then(pl.col("VL_CONTA")).max().alias("gross_profit"),
-        pl.when(pl.col("CD_CONTA") == "3.11").then(pl.col("VL_CONTA")).max().alias("net_income"),
         pl.when(pl.col("CD_CONTA") == "1").then(pl.col("VL_CONTA")).max().alias("assets"),
         pl.when(pl.col("CD_CONTA") == "2.03").then(pl.col("VL_CONTA")).max().alias("equity"),
+        pl.when(pl.col("CD_CONTA") == "2.01").then(pl.col("VL_CONTA")).max().alias(
+            "current_liabilities"
+        ),
+        pl.when(pl.col("CD_CONTA") == "2.02").then(pl.col("VL_CONTA")).max().alias(
+            "noncurrent_liabilities"
+        ),
     )
+    snapshots = snapshots.sort(["CD_CVM", "DT_RECEB", "DT_REFER"]).unique(
+        subset=["CD_CVM", "DT_RECEB"], keep="last", maintain_order=True
+    )
+    flows = _point_in_time_flows(frame)
+    if flows.is_empty():
+        # Compatibility for governed legacy extracts that lack exercise-period metadata.
+        flows = frame.group_by(["CD_CVM", "DT_RECEB"]).agg(
+            *[
+                pl.when(pl.col("CD_CONTA") == account)
+                .then(pl.col("VL_CONTA"))
+                .max()
+                .alias(name)
+                for account, name in _FLOW_ACCOUNTS.items()
+            ]
+        )
+    snapshots = snapshots.join(flows, on=["CD_CVM", "DT_RECEB"], how="left", validate="1:1")
 
     def safe_ratio(numerator: str, denominator: str) -> pl.Expr:
         return (
-            pl.when(pl.col(denominator).is_not_null() & (pl.col(denominator).abs() > 0))
-            .then(pl.col(numerator) / pl.col(denominator).abs())
+            pl.when(pl.col(denominator).is_not_null() & (pl.col(denominator) > 0))
+            .then(pl.col(numerator) / pl.col(denominator))
             .otherwise(None)
         )
 
+    snapshots = snapshots.sort(["CD_CVM", "DT_RECEB", "DT_REFER"]).with_columns(
+        pl.when(
+            pl.col("current_liabilities").is_not_null()
+            | pl.col("noncurrent_liabilities").is_not_null()
+        )
+        .then(
+            pl.col("current_liabilities").fill_null(0.0)
+            + pl.col("noncurrent_liabilities").fill_null(0.0)
+        )
+        .otherwise(None)
+        .alias("total_liabilities"),
+        pl.when(pl.col("assets").shift(1).over("CD_CVM") > 0)
+        .then(pl.col("assets") / pl.col("assets").shift(1).over("CD_CVM") - 1.0)
+        .otherwise(None)
+        .alias("asset_growth"),
+    )
     result = snapshots.with_columns(
         safe_ratio("net_income", "revenue").alias("net_margin"),
         safe_ratio("net_income", "equity").alias("roe_proxy"),
@@ -68,16 +215,18 @@ def build_company_fundamental_snapshots(statements: pl.DataFrame) -> pl.DataFram
         safe_ratio("revenue", "assets").alias("asset_turnover"),
         safe_ratio("gross_profit", "revenue").alias("gross_margin"),
         safe_ratio("gross_profit", "assets").alias("gross_profitability"),
+        safe_ratio("operating_cash_flow", "assets").alias("operating_cash_flow_to_assets"),
         safe_ratio("equity", "assets").alias("equity_to_assets"),
-        pl.col("revenue").abs().log1p().alias("log_revenue"),
-        pl.col("assets").abs().log1p().alias("log_assets"),
-        pl.col("equity").abs().log1p().alias("log_equity"),
+        safe_ratio("total_liabilities", "assets").alias("leverage_to_assets"),
+        pl.when(pl.col("revenue") > 0).then(pl.col("revenue").log1p()).alias("log_revenue"),
+        pl.when(pl.col("assets") > 0).then(pl.col("assets").log1p()).alias("log_assets"),
+        pl.when(pl.col("equity") > 0).then(pl.col("equity").log1p()).alias("log_equity"),
+        (pl.col("equity").is_not_null() & (pl.col("equity") <= 0)).alias("negative_equity"),
     ).sort(["CD_CVM", "DT_RECEB", "DT_REFER"])
 
     # A restatement batch can publish several historical reference periods on the same day.
     # join_asof requires one deterministic value for each receipt date; use the newest reference
     # period present in that filing batch.
-    result = result.unique(subset=["CD_CVM", "DT_RECEB"], keep="last", maintain_order=True)
     validate_unique_rows(result, ["CD_CVM", "DT_RECEB"], context="fundamental snapshots")
     impossible = result.filter(pl.col("DT_REFER") > pl.col("DT_RECEB"))
     if not impossible.is_empty():
@@ -92,6 +241,8 @@ def attach_fundamentals_point_in_time(
     monthly_technical: pl.DataFrame,
     fundamentals: pl.DataFrame,
     bridge: pl.DataFrame,
+    *,
+    stale_after_days: int = 180,
 ) -> pl.DataFrame:
     """Attach only fundamentals public and mapped to the ticker at prediction time.
 
@@ -103,16 +254,23 @@ def attach_fundamentals_point_in_time(
         monthly_technical, ["ticker", "trade_date"], context="monthly technical features"
     )
     validate_issuer_bridge(bridge)
-    technical = monthly_technical.join(bridge, on="ticker", how="inner").filter(
+    mapped = monthly_technical.join(bridge, on="ticker", how="inner").filter(
         (pl.col("trade_date") >= pl.col("valid_from"))
         & (pl.col("trade_date") <= pl.col("valid_to"))
     )
+    mapped_keys = mapped.select("ticker", "trade_date")
+    unmapped = monthly_technical.join(
+        mapped_keys, on=["ticker", "trade_date"], how="anti"
+    ).join(bridge.head(0), on="ticker", how="left")
+    technical = pl.concat([mapped, unmapped], how="diagonal_relaxed")
     validate_unique_rows(technical, ["ticker", "trade_date"], context="ticker/CD_CVM join")
-    technical = technical.sort(["CD_CVM", "trade_date"])
     fundamentals = fundamentals.with_columns(pl.col("CD_CVM").cast(pl.Utf8)).sort(
         ["CD_CVM", "DT_RECEB"]
     )
-    joined = technical.join_asof(
+    mapped_technical = technical.filter(pl.col("CD_CVM").is_not_null()).sort(
+        ["CD_CVM", "trade_date"]
+    )
+    joined_mapped = mapped_technical.join_asof(
         fundamentals,
         left_on="trade_date",
         right_on="DT_RECEB",
@@ -120,10 +278,43 @@ def attach_fundamentals_point_in_time(
         strategy="backward",
         check_sortedness=False,
     )
+    joined = pl.concat(
+        [joined_mapped, technical.filter(pl.col("CD_CVM").is_null())],
+        how="diagonal_relaxed",
+    ).sort(["trade_date", "ticker"])
     validate_unique_rows(joined, ["ticker", "trade_date"], context="fundamentals point-in-time join")
     validate_fundamentals_point_in_time(joined)
+    joined = joined.with_columns(
+        (pl.col("trade_date") - pl.col("DT_REFER")).dt.total_days().alias("fundamental_age_days")
+    ).with_columns(
+        (
+            pl.col("fundamental_age_days").is_null()
+            | (pl.col("fundamental_age_days") > stale_after_days)
+        ).alias("stale_fundamental")
+    )
 
-    available = [name for name in FUNDAMENTAL_LEVEL_FEATURES if name in joined.columns]
+    fundamental_observations = [
+        name
+        for name in FUNDAMENTAL_LEVEL_FEATURES
+        if name in joined.columns
+        and name not in {"fundamental_age_days", "negative_equity", "stale_fundamental"}
+    ]
+    if fundamental_observations:
+        joined = joined.with_columns(
+            pl.sum_horizontal(
+                [pl.col(name).is_not_null().cast(pl.Int64) for name in fundamental_observations]
+            ).alias("fundamental_available_count"),
+            (
+                1.0
+                - pl.sum_horizontal(
+                    [pl.col(name).is_not_null().cast(pl.Float64) for name in fundamental_observations]
+                )
+                / float(len(fundamental_observations))
+            ).alias("fundamental_missing_fraction"),
+        )
+
+    rankable = {name.removeprefix("rank_") for name in FUNDAMENTAL_RANK_FEATURES}
+    available = [name for name in FUNDAMENTAL_LEVEL_FEATURES if name in joined.columns and name in rankable]
     for feature in available:
         joined = joined.with_columns(
             (
@@ -131,4 +322,26 @@ def attach_fundamentals_point_in_time(
                 / (pl.col(feature).is_not_null() & pl.col(feature).is_finite()).sum().over("trade_date")
             ).alias(f"rank_{feature}")
         )
+        if "sector" in joined.columns:
+            joined = joined.with_columns(
+                (
+                    pl.col(feature).rank(method="average").over(["trade_date", "sector"])
+                    / (pl.col(feature).is_not_null() & pl.col(feature).is_finite())
+                    .sum()
+                    .over(["trade_date", "sector"])
+                ).alias(f"sector_rank_{feature}")
+            )
+    if "sector" in joined.columns:
+        for output_name in SECTOR_NEUTRAL_TECHNICAL_FEATURES:
+            feature = output_name.removeprefix("sector_rank_")
+            if feature not in joined.columns:
+                continue
+            joined = joined.with_columns(
+                (
+                    pl.col(feature).rank(method="average").over(["trade_date", "sector"])
+                    / (pl.col(feature).is_not_null() & pl.col(feature).is_finite())
+                    .sum()
+                    .over(["trade_date", "sector"])
+                ).alias(output_name)
+            )
     return joined

@@ -32,6 +32,7 @@ def solve_exact_branch_and_bound(instance: QKPInstance, *, max_n: int = 32) -> O
     pair = instance.pair_values[np.ix_(order, order)]
     costs = instance.costs[order]
     sectors = tuple(instance.sectors[i] for i in order) if instance.sectors is not None else None
+    issuer_ids = tuple(instance.issuer_ids[i] for i in order) if instance.issuer_ids is not None else None
 
     best_value = -float("inf")
     best_selected: tuple[int, ...] = ()
@@ -59,6 +60,7 @@ def solve_exact_branch_and_bound(instance: QKPInstance, *, max_n: int = 32) -> O
         current: float,
         cost: float,
         sector_counts: Counter[str],
+        issuer_counts: Counter[str],
     ) -> None:
         nonlocal best_value, best_selected
         remaining_count = n - index
@@ -76,10 +78,12 @@ def solve_exact_branch_and_bound(instance: QKPInstance, *, max_n: int = 32) -> O
 
         # Include branch first to find strong incumbents early.
         candidate_sector = sectors[index] if sectors is not None else None
+        candidate_issuer = issuer_ids[index] if issuer_ids is not None else None
         if (
             len(selected) < max_card
             and cost + costs[index] <= instance.capacity + 1e-9
             and sector_ok(sector_counts, candidate_sector)
+            and (candidate_issuer is None or issuer_counts[candidate_issuer] == 0)
         ):
             incremental = float(linear[index])
             if selected:
@@ -87,14 +91,18 @@ def solve_exact_branch_and_bound(instance: QKPInstance, *, max_n: int = 32) -> O
             selected.append(index)
             if candidate_sector is not None:
                 sector_counts[candidate_sector] += 1
-            dfs(index + 1, selected, current + incremental, cost + float(costs[index]), sector_counts)
+            if candidate_issuer is not None:
+                issuer_counts[candidate_issuer] += 1
+            dfs(index + 1, selected, current + incremental, cost + float(costs[index]), sector_counts, issuer_counts)
+            if candidate_issuer is not None:
+                issuer_counts[candidate_issuer] -= 1
             if candidate_sector is not None:
                 sector_counts[candidate_sector] -= 1
             selected.pop()
 
-        dfs(index + 1, selected, current, cost, sector_counts)
+        dfs(index + 1, selected, current, cost, sector_counts, issuer_counts)
 
-    dfs(0, [], 0.0, 0.0, Counter())
+    dfs(0, [], 0.0, 0.0, Counter(), Counter())
     if best_value == -float("inf"):
         return OptimizationResult((), (), 0.0, 0.0, "infeasible", "exact-bnb", True, 0.0)
 

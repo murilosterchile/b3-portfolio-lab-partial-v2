@@ -42,7 +42,7 @@ export default function Dashboard() {
         budget,
         min_positions: Math.max(4, positions - 3),
         max_positions: positions,
-        candidate_count: 18,
+        candidate_count: 30,
         risk_aversion: risk,
         uncertainty_penalty: 0.5,
         allocation: "hrp",

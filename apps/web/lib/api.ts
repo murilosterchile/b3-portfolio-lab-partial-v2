@@ -2,6 +2,7 @@ export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000
 
 export type Asset = {
   ticker: string;
+  issuer_id?: string | null;
   company: string;
   sector: string;
   price: number;
@@ -16,6 +17,7 @@ export type Asset = {
 
 export type Position = {
   ticker: string;
+  issuer_id: string;
   company: string;
   sector: string;
   weight: number;

@@ -9,7 +9,7 @@ REQUIRED_PRICE_COLUMNS = {"trade_date", "ticker", "close", "volume", "trades"}
 def build_technical_features(
     prices: pl.DataFrame,
     *,
-    horizon_days: int = 63,
+    horizon_days: int = 21,
     execution_lag_bars: int = 1,
 ) -> pl.DataFrame:
     """Build leakage-safe daily features and executable forward-return labels.
@@ -106,6 +106,18 @@ def build_technical_features(
         pl.col("volume").log1p().alias("log_volume"),
         pl.col("volume").rolling_mean(21).over("ticker").log1p().alias("log_volume_21d"),
         pl.col("trades").rolling_mean(21).over("ticker").log1p().alias("log_trades_21d"),
+        (-pl.col("return_5d")).alias("short_term_reversal_5d"),
+        (0.5 * pl.col("return_63d") + 0.5 * pl.col("return_126d")).alias(
+            "medium_term_momentum"
+        ),
+        (px * pl.col("volume")).rolling_mean(21).over("ticker").log1p().alias(
+            "log_traded_value_21d"
+        ),
+        (
+            (pl.col("ret_1d").abs() / (px * pl.col("volume")).clip(lower_bound=1.0))
+            .rolling_mean(21)
+            .over("ticker")
+        ).alias("amihud_illiquidity_21d"),
         pl.when(target_same_distribution)
         .then(pl.col("target_end_close") / pl.col("target_start_close") - 1.0)
         .otherwise(None)
@@ -113,8 +125,10 @@ def build_technical_features(
     )
 
     frame = frame.with_columns(
+        pl.col("ret_1d").mean().over("trade_date").alias("market_return_1d"),
         pl.col("future_return").mean().over("trade_date").alias("market_forward_return")
     ).with_columns(
+        (pl.col("ret_1d") - pl.col("market_return_1d")).alias("market_residual_1d"),
         (pl.col("future_return") - pl.col("market_forward_return")).alias("target_excess_return"),
         (
             pl.col("future_return").rank(method="average").over("trade_date")
@@ -125,6 +139,12 @@ def build_technical_features(
         pl.lit(execution_lag_bars).alias("execution_lag_bars"),
     )
 
+    frame = frame.with_columns(
+        pl.col("market_residual_1d").rolling_std(63).over("ticker").alias(
+            "residual_volatility_63d"
+        )
+    )
+
     rank_features = [
         "return_21d",
         "return_63d",
@@ -133,6 +153,11 @@ def build_technical_features(
         "volatility_63d",
         "distance_sma_63",
         "log_volume_21d",
+        "short_term_reversal_5d",
+        "medium_term_momentum",
+        "residual_volatility_63d",
+        "log_traded_value_21d",
+        "amihud_illiquidity_21d",
     ]
     for feature in rank_features:
         frame = frame.with_columns(

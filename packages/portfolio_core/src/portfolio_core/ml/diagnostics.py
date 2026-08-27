@@ -92,9 +92,9 @@ def monthly_feature_ic(
     rows: list[dict[str, object]] = []
     for group in frame.partition_by("trade_date", maintain_order=True):
         trade_date = group["trade_date"].item(0)
-        target = group[target_column].to_numpy()
+        target = group[target_column].cast(pl.Float64, strict=False).to_numpy()
         for feature in features:
-            values = group[feature].to_numpy()
+            values = group[feature].cast(pl.Float64, strict=False).to_numpy()
             mask = np.isfinite(values) & np.isfinite(target)
             if mask.sum() < 10:
                 continue
@@ -183,16 +183,16 @@ def model_importance(model: TrainedSignalModel, *, fold_year: int | None = None)
     split = lgb.feature_importance(importance_type="split")
     cat = np.asarray(model.model.catboost.get_feature_importance(type="PredictionValuesChange"))
     ridge = np.asarray(model.model.ridge.coef_, dtype=float)
-    n = min(len(names), len(gain), len(split), len(cat), len(ridge))
-    frame = pl.DataFrame(
-        {
-            "feature": names[:n],
-            "lightgbm_gain": gain[:n],
-            "lightgbm_split": split[:n],
-            "catboost_prediction_values_change": cat[:n],
-            "ridge_standardized_coefficient": ridge[:n],
-        }
-    )
+    rows: list[dict[str, object]] = []
+    for feature, value in zip(model.feature_names, gain, strict=True):
+        rows.append({"model": "lightgbm", "feature": feature, "metric": "gain", "value": float(value)})
+    for feature, value in zip(model.feature_names, split, strict=True):
+        rows.append({"model": "lightgbm", "feature": feature, "metric": "split", "value": float(value)})
+    for feature, value in zip(model.feature_names, cat, strict=True):
+        rows.append({"model": "catboost", "feature": feature, "metric": "prediction_values_change", "value": float(value)})
+    for feature, value in zip(names, ridge, strict=True):
+        rows.append({"model": "ridge", "feature": feature, "metric": "standardized_coefficient", "value": float(value)})
+    frame = pl.DataFrame(rows)
     if fold_year is not None:
         frame = frame.with_columns(pl.lit(fold_year).alias("fold_year"))
     return frame

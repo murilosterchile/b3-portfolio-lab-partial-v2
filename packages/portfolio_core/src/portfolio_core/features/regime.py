@@ -41,15 +41,24 @@ def build_market_regime_candidates(daily_features: pl.DataFrame) -> pl.DataFrame
     return market
 
 
-def attach_selic_candidate(regime: pl.DataFrame, selic_sgs: pl.DataFrame) -> pl.DataFrame:
+def attach_selic_candidate(
+    regime: pl.DataFrame,
+    selic_sgs: pl.DataFrame,
+    *,
+    availability_lag_days: int = 1,
+) -> pl.DataFrame:
     """Attach SELIC conservatively one calendar day after the SGS observation date.
 
     This avoids assuming that a same-date Copom/SGS update was known before the
     B3 signal close. IPCA is intentionally excluded because the current raw SGS
     materialization does not retain a release timestamp for the reference month.
     """
+    if availability_lag_days < 1:
+        raise ValueError("SELIC availability lag must be at least one calendar day")
+    if missing := {"date", "value"} - set(selic_sgs.columns):
+        raise ValueError(f"SELIC candidate is missing columns: {sorted(missing)}")
     safe = selic_sgs.select(
-        (pl.col("date") + pl.duration(days=1)).alias("available_at"),
+        (pl.col("date") + pl.duration(days=availability_lag_days)).alias("available_at"),
         pl.col("value").alias("regime_selic_target"),
     ).sort("available_at")
     joined = regime.sort("trade_date").join_asof(

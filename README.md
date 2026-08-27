@@ -7,6 +7,9 @@ Protótipo local de pesquisa quantitativa para construir carteiras de ações da
 
 ## Partial v2 research upgrade (August 2026)
 
+The P2 economic-inference and capacity protocol is documented in
+[`docs/QUANT_ML_P2_IMPLEMENTATION.md`](docs/QUANT_ML_P2_IMPLEMENTATION.md).
+
 This package includes a partial research-grade upgrade focused on the weaknesses found in the
 first real backtest. The main changes are:
 

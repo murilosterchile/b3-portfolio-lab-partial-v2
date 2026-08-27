@@ -15,7 +15,6 @@ from portfolio_core.ml.walk_forward import (
     TrainingPolicy,
     fit_final_model,
     save_signal_model,
-    walk_forward_evaluate,
 )
 from portfolio_core.quant.factors import composite_quant_score, learn_factor_sleeve_weights
 
@@ -50,6 +49,8 @@ def main() -> None:
             and int(tuning_metadata.get("target_horizon_bars", -1)) == protocol.label_horizon_bars
         ):
             model_config = tuning_metadata.get("config")
+            if not tuning_metadata.get("outer_fold_scores"):
+                raise SystemExit("Tuning artifact lacks untouched outer folds; run make tune again")
             print(f"using_tuned_config={tuned_path}")
         else:
             print("tuned_config_ignored=research_protocol_mismatch")
@@ -87,17 +88,9 @@ def main() -> None:
         ),
         encoding="utf-8",
     )
-    evaluation = walk_forward_evaluate(
-        development,
-        first_validation_year=2019,
-        last_validation_year=protocol.development_end_year,
-        feature_names=feature_names,
-        model_config=model_config,
-        training_policy=policy,
-    )
-    print("development_walk_forward:")
-    for year, metrics in evaluation:
-        print(year, metrics)
+    print("nested_outer_evaluation:")
+    for year, score in sorted((tuning_metadata or {}).get("outer_fold_scores", {}).items()):
+        print(year, {"rank_ic": score, "selection": "inner_folds_only"})
 
     model = fit_final_model(
         development,

@@ -171,16 +171,10 @@ def main() -> None:
     annual_ic.write_csv(out_dir / "feature_ic_by_year.csv")
     regime_ic.write_csv(out_dir / "feature_ic_regime_comparison.csv")
 
-    tuned_path = model_dir / "tuned_hyperparameters.json"
+    # Policy selection deliberately uses the pre-registered default model. A
+    # final tuned config has seen later development folds and cannot be replayed
+    # into earlier policy folds without data snooping.
     model_config = None
-    if tuned_path.exists():
-        tuned = json.loads(tuned_path.read_text(encoding="utf-8"))
-        if (
-            int(tuned.get("development_end_year", -1)) == protocol.development_end_year
-            and int(tuned.get("diagnostic_year", -1)) == protocol.diagnostic_year
-            and int(tuned.get("target_horizon_bars", -1)) == protocol.label_horizon_bars
-        ):
-            model_config = tuned.get("config")
 
     policy_results: dict[str, object] = {}
     ranking_comparison_policy = TrainingPolicy()

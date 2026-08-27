@@ -10,6 +10,8 @@ import polars as pl
 
 # Common SGS series used by the prototype. Metadata should be reviewed before production use.
 DEFAULT_SERIES = {
+    # SGS 12 is the official CDI rate in percent per business day.
+    "cdi_daily": 12,
     "selic_target": 432,
     "ipca_monthly": 433,
     "usd_brl_sell": 1,

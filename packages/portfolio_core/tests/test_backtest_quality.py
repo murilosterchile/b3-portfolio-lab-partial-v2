@@ -5,6 +5,8 @@ import polars as pl
 import pytest
 from portfolio_core.backtest.engine import (
     BacktestConfig,
+    ExecutionCostModel,
+    _liquidity_cost,
     _metrics,
     _one_way_turnover,
     run_monthly_topk_backtest,
@@ -125,6 +127,33 @@ def test_sharpe_uses_signed_net_return_series() -> None:
     expected = returns.mean() * 252 / (returns.std(ddof=1) * np.sqrt(252))
     assert summary.sharpe == pytest.approx(expected)
     assert summary.sharpe < 0
+
+
+def test_primary_sharpe_uses_excess_returns_and_keeps_raw_sharpe() -> None:
+    returns = np.array([0.002, 0.003, -0.001, 0.004])
+    risk_free = np.array([0.001, 0.001, 0.001, 0.001])
+    equity = 100_000.0 * np.cumprod(np.r_[1.0, 1.0 + returns])
+    summary = _metrics(equity, returns, 0.0, risk_free_returns=risk_free)
+    excess = returns - risk_free
+    expected = excess.mean() * 252 / (excess.std(ddof=1) * np.sqrt(252))
+    assert summary.sharpe == pytest.approx(expected)
+    assert summary.raw_sharpe != pytest.approx(summary.sharpe)
+
+
+def test_liquidity_cost_is_monotone_in_order_participation() -> None:
+    model = ExecutionCostModel(mode="liquidity", participation_cap=1.0)
+    current = np.zeros(2)
+    target = np.array([0.01, 0.10])
+    _, costs, participation = _liquidity_cost(
+        current,
+        target,
+        capital=1_000_000.0,
+        adv=np.array([1_000_000.0, 1_000_000.0]),
+        quoted_spread_bps=np.array([np.nan, np.nan]),
+        model=model,
+    )
+    assert participation[1] > participation[0]
+    assert costs["impact"] > 0
 
 
 def test_half_l1_turnover_matches_simple_switch() -> None:

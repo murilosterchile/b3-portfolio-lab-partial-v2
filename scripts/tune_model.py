@@ -17,6 +17,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--trials", type=int, default=25)
     parser.add_argument("--validation-years", type=int, default=3)
+    parser.add_argument("--outer-years", type=int, default=3)
     parser.add_argument("--feature-path", default="")
     parser.add_argument("--output", default="")
     args = parser.parse_args()
@@ -58,26 +59,34 @@ def main() -> None:
         feature_names=feature_names,
         n_trials=args.trials,
         n_validation_years=args.validation_years,
+        n_outer_years=args.outer_years,
         training_policy=policy,
     )
     model_dir.mkdir(parents=True, exist_ok=True)
     payload = {
-        "best_score_rank_ic": result.best_score,
+        "outer_mean_rank_ic": result.best_score,
+        "outer_fold_scores": result.outer_fold_scores,
+        "outer_fold_configs": result.outer_fold_configs,
         "validation_years": result.validation_years,
         "development_end_year": protocol.development_end_year,
         "diagnostic_year": protocol.diagnostic_year,
         "n_trials": result.n_trials,
+        "number_of_experiments": result.number_of_experiments,
+        "trial_history": result.trial_history,
         "features": feature_names,
         "config": result.best_config,
         "training_policy": selected_policy,
         "warning": protocol.warning,
-        "selection_rule": "No diagnostic-year observation was used for hyperparameter selection.",
+        "selection_rule": (
+            "Nested walk-forward: Optuna uses inner folds only; outer folds are untouched reporting-only; "
+            "the final configuration is selected by an inner study through 2025."
+        ),
         "target_horizon_bars": horizon_values[0],
     }
     out = Path(args.output) if args.output else model_dir / "tuned_hyperparameters.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    print(f"saved={out} best_rank_ic={result.best_score:.6f}")
+    print(f"saved={out} outer_mean_rank_ic={result.best_score:.6f}")
     print(protocol.warning)
 
 

@@ -3,7 +3,7 @@ COMPOSE ?= docker compose
 PYTHON ?= python3
 RUN_USER ?= $(shell id -u):$(shell id -g)
 
-.PHONY: help env up down logs test lint demo ingest-b3 ingest-corporate-actions ingest-cvm ingest-cvm-registry ingest-macro refresh-research-data generate-issuer-bridge build-fundamentals tune train backtest diagnose-model-degradation build-regime-candidates horizon-challengers risk-benchmarks qkp-ablation bootstrap-performance decompose-performance native clean
+.PHONY: help env up down logs test research-tests lint demo ingest-b3 ingest-corporate-actions ingest-cvm ingest-cvm-registry ingest-macro refresh-research-data generate-issuer-bridge build-fundamentals tune train backtest diagnose-model-degradation build-regime-candidates horizon-challengers risk-benchmarks qkp-ablation bootstrap-performance decompose-performance native clean
 
 help:
 	@printf '%s\n' \
@@ -29,6 +29,7 @@ help:
 	  'make bootstrap-performance             - moving-block bootstrap confidence intervals' \
 	  'make decompose-performance             - annual/monthly/ticker/sector concentration report' \
 	  'make test                             - Python tests + C++ exact-solver tests' \
+	  'make research-tests                    - registered Python suites + verifiable gate manifest' \
 	  'make native                           - build exact native QKP reference solver' \
 	  'make down                             - stop local stack'
 
@@ -109,9 +110,12 @@ bootstrap-performance: env
 decompose-performance: env
 	$(COMPOSE) run --rm --build --user $(RUN_USER) api python /workspace/scripts/decompose_performance.py $(or $(STRATEGY),development_research_v2)
 
-test:
-	$(COMPOSE) run --rm --build api pytest -q /workspace/packages/portfolio_core/tests /workspace/services/api/tests
+test: env
+	$(COMPOSE) run --rm --build --user $(RUN_USER) api python /workspace/scripts/run_research_tests.py
 	@if command -v cmake >/dev/null 2>&1; then $(MAKE) native && ./native/qkp/build/qkp_tests; fi
+
+research-tests: env
+	$(COMPOSE) run --rm --build --user $(RUN_USER) api python /workspace/scripts/run_research_tests.py
 
 lint:
 	$(COMPOSE) run --rm --build api ruff check /workspace/packages /workspace/services /workspace/scripts

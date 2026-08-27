@@ -2,10 +2,22 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from typing import Literal
 
 import numpy as np
 import polars as pl
 from portfolio_core.data_quality import DataQualityError, validate_finite_array, validate_prices
+
+
+@dataclass(frozen=True)
+class ExecutionCostModel:
+    mode: Literal["fixed_bps", "liquidity"] = "fixed_bps"
+    fee_bps: float = 0.0
+    participation_cap: float = 0.05
+    impact_coefficient_bps: float = 10.0
+    adv_tier_limits: tuple[float, float] = (1_000_000.0, 10_000_000.0)
+    adv_tier_spread_bps: tuple[float, float, float] = (30.0, 15.0, 8.0)
+    use_eod_quoted_spread: bool = False
 
 
 @dataclass(frozen=True)
@@ -20,6 +32,7 @@ class BacktestConfig:
     # price is therefore the next observed market close.
     execution_delay_bars: int = 1
     max_stale_valuation_sessions: int = 20
+    cost_model: ExecutionCostModel = ExecutionCostModel()
 
 
 @dataclass(frozen=True)
@@ -30,12 +43,19 @@ class BacktestSummary:
     cagr: float
     annualized_volatility: float
     sharpe: float
+    raw_sharpe: float
+    excess_cagr: float
+    risk_free_cagr: float
     max_drawdown: float
     turnover: float
     annualized_turnover: float
     rebalance_periods: int
     average_positions: float
     corporate_action_transitions_excluded: int
+    total_cost: float = 0.0
+    fees_cost: float = 0.0
+    spread_cost: float = 0.0
+    impact_cost: float = 0.0
     execution_delay_bars: int = 1
 
 
@@ -46,6 +66,7 @@ class DetailedBacktest:
     selections: pl.DataFrame
     contributions: pl.DataFrame
     rejected_orders: pl.DataFrame
+    costs: pl.DataFrame
 
 
 _DEFAULT_CONFIG = BacktestConfig()
@@ -76,6 +97,8 @@ def _metrics(
     average_positions: float = 0.0,
     corporate_action_transitions_excluded: int = 0,
     execution_delay_bars: int = 1,
+    risk_free_returns: np.ndarray | None = None,
+    cost_totals: dict[str, float] | None = None,
 ) -> BacktestSummary:
     if len(equity) < 2:
         raise ValueError("Backtest has insufficient observations")
@@ -86,9 +109,23 @@ def _metrics(
     total = float(equity[-1] / equity[0] - 1.0)
     years = max((len(daily_returns) / 252.0), 1.0 / 252.0)
     cagr = float((equity[-1] / equity[0]) ** (1.0 / years) - 1.0)
+    if risk_free_returns is None:
+        risk_free = np.zeros_like(daily_returns)
+    else:
+        risk_free = np.asarray(risk_free_returns, dtype=float)
+        if risk_free.shape != daily_returns.shape:
+            raise ValueError("risk_free_returns must align with daily_returns")
+        validate_finite_array(risk_free, context="risk-free returns")
+    excess_returns = daily_returns - risk_free
     vol = float(np.std(daily_returns, ddof=1) * np.sqrt(252)) if len(daily_returns) > 1 else 0.0
+    excess_vol = float(np.std(excess_returns, ddof=1) * np.sqrt(252)) if len(excess_returns) > 1 else 0.0
     annualized_mean = float(np.mean(daily_returns) * 252) if len(daily_returns) else 0.0
-    sharpe = annualized_mean / vol if vol > 1e-12 else 0.0
+    raw_sharpe = annualized_mean / vol if vol > 1e-12 else 0.0
+    annualized_excess_mean = float(np.mean(excess_returns) * 252) if len(excess_returns) else 0.0
+    sharpe = annualized_excess_mean / excess_vol if excess_vol > 1e-12 else 0.0
+    risk_free_wealth = float(np.prod(1.0 + risk_free))
+    risk_free_cagr = risk_free_wealth ** (1.0 / years) - 1.0
+    costs = cost_totals or {}
     running_max = np.maximum.accumulate(equity)
     drawdowns = equity / running_max - 1.0
     return BacktestSummary(
@@ -98,14 +135,85 @@ def _metrics(
         cagr=cagr,
         annualized_volatility=vol,
         sharpe=sharpe,
+        raw_sharpe=raw_sharpe,
+        excess_cagr=cagr - risk_free_cagr,
+        risk_free_cagr=risk_free_cagr,
         max_drawdown=float(np.min(drawdowns)),
         turnover=float(turnover),
         annualized_turnover=float(turnover / years),
         rebalance_periods=rebalance_periods,
         average_positions=average_positions,
         corporate_action_transitions_excluded=corporate_action_transitions_excluded,
+        total_cost=float(sum(costs.values())),
+        fees_cost=float(costs.get("fees", 0.0)),
+        spread_cost=float(costs.get("spread", 0.0)),
+        impact_cost=float(costs.get("impact", 0.0)),
         execution_delay_bars=execution_delay_bars,
     )
+
+
+def _aligned_daily_returns(dates: list[date], frame: pl.DataFrame | None) -> np.ndarray:
+    if frame is None:
+        return np.zeros(len(dates) - 1, dtype=float)
+    required = {"trade_date", "daily_return"}
+    if missing := required - set(frame.columns):
+        raise DataQualityError(f"risk-free series missing columns: {sorted(missing)}")
+    duplicates = frame.group_by("trade_date").len().filter(pl.col("len") > 1)
+    if not duplicates.is_empty():
+        raise DataQualityError("risk-free series contains duplicate trade dates")
+    lookup = dict(frame.select("trade_date", "daily_return").iter_rows())
+    missing_dates = [value for value in dates[1:] if value not in lookup]
+    if missing_dates:
+        raise DataQualityError(
+            f"risk-free series lacks {len(missing_dates)} market dates; first missing={missing_dates[0]}"
+        )
+    values = np.asarray([lookup[value] for value in dates[1:]], dtype=float)
+    validate_finite_array(values, context="risk-free series")
+    if np.any(values <= -1.0):
+        raise DataQualityError("risk-free series contains return <= -100%")
+    return values
+
+
+def _liquidity_cost(
+    current: np.ndarray,
+    requested: np.ndarray,
+    *,
+    capital: float,
+    adv: np.ndarray,
+    quoted_spread_bps: np.ndarray,
+    model: ExecutionCostModel,
+) -> tuple[np.ndarray, dict[str, float], np.ndarray]:
+    delta = requested - current
+    participation = np.full_like(delta, np.nan, dtype=float)
+    finite_adv = np.isfinite(adv) & (adv > 0)
+    if np.any((np.abs(delta) > 1e-15) & ~finite_adv):
+        raise DataQualityError("liquidity cost model requires positive point-in-time 21-day ADV")
+    max_delta = np.where(finite_adv, model.participation_cap * adv / capital, 0.0)
+    executed_delta = np.sign(delta) * np.minimum(np.abs(delta), max_delta)
+    executed = np.maximum(current + executed_delta, 0.0)
+    if executed.sum() > 1.0:
+        buys = executed_delta > 0
+        excess = float(executed.sum() - 1.0)
+        buy_total = float(executed_delta[buys].sum())
+        if buy_total > 0:
+            executed[buys] -= executed_delta[buys] * min(1.0, excess / buy_total)
+    order_fraction = np.abs(executed - current)
+    participation[finite_adv] = order_fraction[finite_adv] * capital / adv[finite_adv]
+    limits = model.adv_tier_limits
+    tier_spread = np.select(
+        [adv <= limits[0], adv <= limits[1]],
+        model.adv_tier_spread_bps[:2],
+        default=model.adv_tier_spread_bps[2],
+    ).astype(float)
+    if model.use_eod_quoted_spread:
+        spread_bps = np.where(np.isfinite(quoted_spread_bps), quoted_spread_bps, tier_spread)
+    else:
+        spread_bps = tier_spread
+    fees = float(np.sum(order_fraction) * model.fee_bps / 10_000.0)
+    spread = float(np.sum(order_fraction * spread_bps) / 10_000.0)
+    impact_bps = model.impact_coefficient_bps * np.sqrt(np.nan_to_num(participation, nan=0.0))
+    impact = float(np.sum(order_fraction * impact_bps) / 10_000.0)
+    return executed, {"fees": fees, "spread": spread, "impact": impact}, participation
 
 
 def _buffered_selection(
@@ -145,6 +253,7 @@ def run_monthly_topk_backtest_detailed(
     *,
     score_column: str,
     config: BacktestConfig = _DEFAULT_CONFIG,
+    risk_free_returns: pl.DataFrame | None = None,
 ) -> DetailedBacktest:
     """Monthly top-K simulation with explicit next-close execution.
 
@@ -163,6 +272,10 @@ def run_monthly_topk_backtest_detailed(
         raise ValueError("transaction_cost_bps must be non-negative")
     if config.max_stale_valuation_sessions < 1:
         raise ValueError("max_stale_valuation_sessions must be positive")
+    if config.cost_model.mode not in {"fixed_bps", "liquidity"}:
+        raise ValueError("unsupported cost model")
+    if not 0 < config.cost_model.participation_cap <= 1:
+        raise ValueError("participation_cap must be in (0, 1]")
     required_signals = {"trade_date", "ticker", score_column}
     if missing := required_signals - set(signals.columns):
         raise DataQualityError(f"signals missing required columns: {sorted(missing)}")
@@ -228,6 +341,48 @@ def run_monthly_topk_backtest_detailed(
     tickers = [column for column in close_frame.columns if column != "trade_date"]
     observed = close_frame.select(pl.col(tickers).is_not_null()).to_numpy()
     close = close_frame.select(tickers).fill_null(strategy="forward").to_numpy()
+    adv = np.full_like(close, np.nan)
+    quoted_spread_bps = np.full_like(close, np.nan)
+    if config.cost_model.mode == "liquidity":
+        if "volume" not in used_prices.columns:
+            raise DataQualityError("liquidity cost model requires B3 financial volume")
+        liquidity_long = used_prices.sort(["ticker", "trade_date"]).with_columns(
+            pl.col("volume")
+            .rolling_mean(window_size=21, min_samples=5)
+            .shift(1)
+            .over("ticker")
+            .alias("__adv")
+        )
+        if {"best_bid", "best_ask"} <= set(used_prices.columns):
+            liquidity_long = liquidity_long.with_columns(
+                pl.when(
+                    (pl.col("best_bid") > 0)
+                    & (pl.col("best_ask") >= pl.col("best_bid"))
+                )
+                .then(
+                    (pl.col("best_ask") - pl.col("best_bid"))
+                    / ((pl.col("best_ask") + pl.col("best_bid")) / 2.0)
+                    * 10_000.0
+                )
+                .otherwise(None)
+                .alias("__spread_bps")
+            )
+        else:
+            liquidity_long = liquidity_long.with_columns(
+                pl.lit(None, dtype=pl.Float64).alias("__spread_bps")
+            )
+        adv_frame = liquidity_long.select("trade_date", "ticker", "__adv").pivot(
+            index="trade_date", on="ticker", values="__adv"
+        )
+        spread_frame = liquidity_long.select("trade_date", "ticker", "__spread_bps").pivot(
+            index="trade_date", on="ticker", values="__spread_bps"
+        )
+        adv = close_frame.select("trade_date").join(
+            adv_frame, on="trade_date", how="left", validate="1:1"
+        ).select(tickers).to_numpy()
+        quoted_spread_bps = close_frame.select("trade_date").join(
+            spread_frame, on="trade_date", how="left", validate="1:1"
+        ).select(tickers).to_numpy()
     if has_distribution_number:
         distribution_frame = (
             price_long.select("trade_date", "ticker", "distribution_number")
@@ -329,6 +484,10 @@ def run_monthly_topk_backtest_detailed(
     cash_weight = 1.0
     contribution_rows: list[dict[str, object]] = []
     stale_age = np.zeros(len(tickers), dtype=int)
+    risk_free_daily = _aligned_daily_returns(dates[start_index:], risk_free_returns)
+    realized_risk_free: list[float] = []
+    cost_rows: list[dict[str, object]] = []
+    cost_totals = {"fees": 0.0, "spread": 0.0, "impact": 0.0}
 
     for index in range(start_index + 1, len(dates)):
         previous_date = dates[index - 1]
@@ -367,7 +526,10 @@ def run_monthly_topk_backtest_detailed(
                         "stale_age_sessions": int(stale_age[column]),
                     }
                 )
-        day_return = float(weights[active] @ asset_returns[active]) if np.any(active) else 0.0
+        rf_return = float(risk_free_daily[index - start_index - 1])
+        day_return = (
+            float(weights[active] @ asset_returns[active]) if np.any(active) else 0.0
+        ) + cash_weight * rf_return
         if not np.isfinite(day_return) or day_return <= -1.0:
             raise DataQualityError(f"invalid portfolio return {day_return} for {previous_date} -> {current_date}")
         capital *= 1.0 + day_return
@@ -375,7 +537,7 @@ def run_monthly_topk_backtest_detailed(
         drifted = np.zeros_like(weights)
         drifted[active] = weights[active] * (1.0 + asset_returns[active]) / growth
         weights = drifted
-        cash_weight = cash_weight / growth
+        cash_weight = cash_weight * (1.0 + rf_return) / growth
 
         # Execute only after reaching the execution close. The interval from the
         # signal close to this close was earned by the old portfolio/cash.
@@ -398,18 +560,59 @@ def run_monthly_topk_backtest_detailed(
                             "reason": "no_observed_quote_for_exit",
                         }
                     )
+            requested_target = target.copy()
+            component_costs = {"fees": 0.0, "spread": 0.0, "impact": 0.0}
+            participation = np.full(len(tickers), np.nan)
+            if config.cost_model.mode == "liquidity":
+                target, component_costs, participation = _liquidity_cost(
+                    weights,
+                    requested_target,
+                    capital=capital,
+                    adv=adv[index],
+                    quoted_spread_bps=quoted_spread_bps[index],
+                    model=config.cost_model,
+                )
+                capped = np.abs(target - requested_target) > 1e-12
+                for column in np.flatnonzero(capped):
+                    rejected_rows.append(
+                        {
+                            "signal_date": rebalance_signal_dates[current_date],
+                            "execution_date": current_date,
+                            "ticker": tickers[column],
+                            "reason": "participation_cap_partial_fill",
+                        }
+                    )
             target_cash = max(0.0, 1.0 - float(target.sum()))
             turnover = _one_way_turnover(weights, target, current_cash=cash_weight, target_cash=target_cash)
-            cost_fraction = turnover * config.transaction_cost_bps / 10_000.0
+            if config.cost_model.mode == "fixed_bps":
+                component_costs["fees"] = turnover * config.transaction_cost_bps / 10_000.0
+            cost_fraction = float(sum(component_costs.values()))
             if cost_fraction >= 1.0:
                 raise DataQualityError(f"transaction costs consume all capital on {current_date}")
             total_turnover += turnover
+            for component, fraction in component_costs.items():
+                amount = capital * fraction
+                cost_totals[component] += amount
+                if amount > 0:
+                    cost_rows.append(
+                        {
+                            "trade_date": current_date,
+                            "component": component,
+                            "cost_amount": amount,
+                            "cost_fraction": fraction,
+                            "capital": capital,
+                            "max_participation": float(np.nanmax(participation))
+                            if np.any(np.isfinite(participation))
+                            else None,
+                        }
+                    )
             capital *= 1.0 - cost_fraction
             weights = target
             cash_weight = target_cash
 
         net_day_return = float(capital / previous_capital - 1.0)
         portfolio_daily.append(net_day_return)
+        realized_risk_free.append(rf_return)
         equity.append(capital)
 
     equity_array = np.asarray(equity)
@@ -422,9 +625,19 @@ def run_monthly_topk_backtest_detailed(
         average_positions=float(np.mean(position_counts)) if position_counts else 0.0,
         corporate_action_transitions_excluded=len(excluded_transitions),
         execution_delay_bars=config.execution_delay_bars,
+        risk_free_returns=np.asarray(realized_risk_free),
+        cost_totals=cost_totals,
     )
-    curve = pl.DataFrame({"trade_date": dates[start_index:], "portfolio_value": equity_array}).with_columns(
-        pl.lit(price_column).alias("price_basis")
+    curve = pl.DataFrame(
+        {
+            "trade_date": dates[start_index:],
+            "portfolio_value": equity_array,
+            "net_return": [None, *portfolio_daily],
+            "risk_free_return": [None, *realized_risk_free],
+        }
+    ).with_columns(
+        pl.lit(price_column).alias("price_basis"),
+        (pl.col("net_return") - pl.col("risk_free_return")).alias("excess_return"),
     )
     selections = pl.DataFrame(selection_rows) if selection_rows else pl.DataFrame(
         schema={
@@ -441,7 +654,10 @@ def run_monthly_topk_backtest_detailed(
     rejected = pl.DataFrame(rejected_rows) if rejected_rows else pl.DataFrame(
         schema={"signal_date": pl.Date, "execution_date": pl.Date, "ticker": pl.Utf8, "reason": pl.Utf8}
     )
-    return DetailedBacktest(curve, summary, selections, contributions, rejected)
+    costs = pl.DataFrame(cost_rows) if cost_rows else pl.DataFrame(
+        schema={"trade_date": pl.Date, "component": pl.Utf8, "cost_amount": pl.Float64, "cost_fraction": pl.Float64, "capital": pl.Float64, "max_participation": pl.Float64}
+    )
+    return DetailedBacktest(curve, summary, selections, contributions, rejected, costs)
 
 
 def run_monthly_topk_backtest(
@@ -450,8 +666,13 @@ def run_monthly_topk_backtest(
     *,
     score_column: str,
     config: BacktestConfig = _DEFAULT_CONFIG,
+    risk_free_returns: pl.DataFrame | None = None,
 ) -> tuple[pl.DataFrame, BacktestSummary]:
     result = run_monthly_topk_backtest_detailed(
-        prices, signals, score_column=score_column, config=config
+        prices,
+        signals,
+        score_column=score_column,
+        config=config,
+        risk_free_returns=risk_free_returns,
     )
     return result.curve, result.summary

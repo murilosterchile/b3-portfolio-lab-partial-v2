@@ -2,6 +2,7 @@ from .engine import (
     BacktestConfig,
     BacktestSummary,
     DetailedBacktest,
+    ExecutionCostModel,
     run_monthly_topk_backtest,
     run_monthly_topk_backtest_detailed,
 )
@@ -18,6 +19,7 @@ __all__ = [
     "BacktestConfig",
     "BacktestSummary",
     "DetailedBacktest",
+    "ExecutionCostModel",
     "DetailedWeightedBacktest",
     "WeightedBacktestConfig",
     "build_monthly_risk_benchmark_weights",
